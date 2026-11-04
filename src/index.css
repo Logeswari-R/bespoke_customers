@@ -1,0 +1,268 @@
+@import "tailwindcss";
+
+:root {
+  /* Bespoke Flutter Design System Tokens */
+  --theme-primary: #d6007a;          /* Main interactive elements & primary buttons */
+  --theme-primary-hover: #b80069;    /* Deepened active magenta */
+  --theme-primary-light: #ffe3f1;    /* Soft tint for badges, chips, selected items */
+  --theme-secondary: #9e1478;        /* Deep magenta accent & luxury headers */
+  --theme-secondary-hover: #831063;  /* Dark royal plum */
+  --theme-accent: #00b8bd;           /* High-contrast secondary CTA & highlights */
+  --theme-accent-amber: #ff9e00;     /* Warm indicator / warning */
+  --theme-success: #00a859;          /* Success state indicator */
+  --theme-bg: #faf7f9;               /* Main app background */
+  --theme-bg-subtle: #f3edf1;        /* Grouped section divider tint */
+  --theme-text-primary: #1e141b;     /* Main readable body & headings */
+  --theme-text-secondary: #756872;   /* Subtitles, captions, disabled text */
+
+  /* Luxury Dark Atelier Canvas */
+  --theme-dark: #0c0c10;
+  --theme-dark-surface: #15151d;
+  --theme-dark-border: rgba(255, 255, 255, 0.08);
+
+  /* Bespoke Gradient Hierarchy */
+  --theme-gradient: linear-gradient(135deg, #d6007a 0%, #9e1478 100%);
+  --theme-gradient-hover: linear-gradient(135deg, #b80069 0%, #831063 100%);
+  --theme-gradient-subtle: linear-gradient(135deg, rgba(214, 0, 122, 0.05) 0%, rgba(158, 20, 120, 0.05) 100%);
+  --theme-gradient-border: linear-gradient(135deg, rgba(214, 0, 122, 0.35) 0%, rgba(158, 20, 120, 0.35) 100%);
+  --theme-gradient-dark: linear-gradient(180deg, #16161f 0%, #0c0c10 100%);
+
+  /* Luxury Glows & Shadows */
+  --theme-glow: 0 8px 24px -4px rgba(214, 0, 122, 0.28);
+  --theme-glow-sm: 0 4px 14px -2px rgba(214, 0, 122, 0.2);
+  --theme-glow-secondary: 0 8px 24px -4px rgba(158, 20, 120, 0.28);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    overflow-x: hidden;
+    color: #1a1a1e;
+    background-color: #ffffff;
+  }
+
+  /* Selection color matching Bespoke fuchsia */
+  ::selection {
+    background-color: #fce7f3;
+    color: #9d174d;
+  }
+}
+
+/* Global Reusable Theme Utilities */
+.bg-theme-gradient {
+  background: var(--theme-gradient);
+}
+
+.bg-theme-gradient-hover:hover {
+  background: var(--theme-gradient-hover);
+}
+
+.bg-theme-subtle {
+  background: var(--theme-gradient-subtle);
+}
+
+.bg-theme-primary {
+  background-color: var(--theme-primary);
+}
+
+.bg-theme-secondary {
+  background-color: var(--theme-secondary);
+}
+
+.text-theme-gradient {
+  background: var(--theme-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-theme-primary {
+  color: var(--theme-primary);
+}
+
+.text-theme-secondary {
+  color: var(--theme-secondary);
+}
+
+.text-theme-accent {
+  color: var(--theme-accent);
+}
+
+.border-theme-primary {
+  border-color: var(--theme-primary);
+}
+
+.border-theme-subtle {
+  border-color: rgba(216, 27, 96, 0.22);
+}
+
+.border-theme-gradient {
+  border-image: var(--theme-gradient) 1;
+}
+
+/* Interactive Brand Buttons */
+.btn-theme {
+  background: var(--theme-gradient);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  box-shadow: var(--theme-glow-sm);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-theme:hover {
+  background: var(--theme-gradient-hover);
+  box-shadow: var(--theme-glow);
+  transform: translateY(-1.5px);
+}
+
+.btn-theme:active {
+  transform: translateY(0);
+}
+
+.btn-theme-outline {
+  background: transparent;
+  color: var(--theme-primary);
+  border: 1.5px solid var(--theme-primary);
+  font-weight: 700;
+  border-radius: 0.75rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-theme-outline:hover {
+  background: var(--theme-gradient);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: var(--theme-glow-sm);
+  transform: translateY(-1.5px);
+}
+
+/* Badges */
+.badge-theme {
+  background: var(--theme-gradient);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(216, 27, 96, 0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.badge-theme-subtle {
+  background: var(--theme-accent-light);
+  color: var(--theme-primary);
+  border: 1px solid rgba(216, 27, 96, 0.25);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Luxury Cards */
+.card-luxury {
+  background: #ffffff;
+  border: 1px solid #f1f1f5;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-luxury:hover {
+  border-color: rgba(216, 27, 96, 0.3);
+  box-shadow: 0 12px 30px -4px rgba(216, 27, 96, 0.12);
+  transform: translateY(-3px);
+}
+
+/* Dark Atelier Card for Haute Couture & Top Designers */
+.card-atelier {
+  background: var(--theme-dark-surface);
+  border: 1px solid var(--theme-dark-border);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-atelier:hover {
+  border-color: rgba(216, 27, 96, 0.5);
+  box-shadow: 0 16px 36px -4px rgba(216, 27, 96, 0.28);
+  transform: translateY(-4px);
+}
+
+/* Hide scrollbar for clean horizontal scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Theme Color Backgrounds & Badges */
+.bg-app-bg {
+  background-color: var(--theme-bg);
+}
+
+.badge-accent-cyan {
+  background-color: rgba(0, 184, 189, 0.12);
+  color: #00878b;
+  border: 1px solid rgba(0, 184, 189, 0.25);
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.badge-accent-amber {
+  background-color: rgba(255, 158, 0, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(255, 158, 0, 0.25);
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.badge-success {
+  background-color: rgba(0, 168, 89, 0.12);
+  color: #008a49;
+  border: 1px solid rgba(0, 168, 89, 0.25);
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+/* Custom scrollbar for dropdowns */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
