@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
-import { X, Heart, ShoppingBag, Trash2, ArrowRight } from 'lucide-react'
-import { formatImageUrl } from '../../services/api'
+import { X, Heart, ShoppingBag, Trash2, ArrowRight, Scissors } from 'lucide-react'
+import { formatImageUrl, isProductCustomizable } from '../../services/api'
 
 export default function WishlistDrawer({
   isOpen,
@@ -9,6 +9,8 @@ export default function WishlistDrawer({
   onRemoveItem,
   onMoveToCart,
   onSelectProduct,
+  cartItems = [],
+  onOpenCart,
 }) {
   useEffect(() => {
     if (isOpen) {
@@ -86,6 +88,7 @@ export default function WishlistDrawer({
                   const price = item.discount_price || item.price || item.actual_price || 499
                   const rawImg = item.image || item.image_path || item.main_image || item.img_path
                   const image = formatImageUrl(rawImg) || 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80'
+                  const isCustomizable = isProductCustomizable(item)
 
                   return (
                     <li key={item.wishlist_id || item.id} className="py-4 flex gap-4 group">
@@ -105,6 +108,13 @@ export default function WishlistDrawer({
                             e.target.src = 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80'
                           }}
                         />
+                        {isCustomizable && (
+                          <div className="absolute top-1 left-1 z-10 pointer-events-none">
+                            <span className="inline-flex items-center p-0.5 rounded-full bg-white/95 text-[var(--theme-primary)] border border-pink-200/90 shadow-2xs backdrop-blur-xs select-none" title="Customizable">
+                              <Scissors className="w-2.5 h-2.5 text-[var(--theme-primary)] stroke-[2.5]" />
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Info & Actions */}
@@ -144,18 +154,32 @@ export default function WishlistDrawer({
                           </div>
                         </div>
 
-                        {/* Move to Bag Button */}
+                        {/* Move to Bag / Go to Bag Button */}
                         <div className="mt-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (onMoveToCart) onMoveToCart(item)
-                            }}
-                            className="w-full py-2 px-3 btn-theme text-xs flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <ShoppingBag className="w-3.5 h-3.5" />
-                            <span>Move to Bag</span>
-                          </button>
+                          {cartItems.some((c) => Number(c.product_id || c.product?.id || c.id) === Number(prodId)) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onClose()
+                                if (onOpenCart) onOpenCart()
+                              }}
+                              className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm rounded-xl transition-colors cursor-pointer"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5" />
+                              <span>In Bag &bull; Go to Bag</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onMoveToCart) onMoveToCart(item)
+                              }}
+                              className="w-full py-2 px-3 btn-theme text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <ShoppingBag className="w-3.5 h-3.5" />
+                              <span>Move to Bag</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </li>

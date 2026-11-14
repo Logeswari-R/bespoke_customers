@@ -1,7 +1,7 @@
 import React from 'react'
 import { X, Phone, Mail, MessageSquare, ShieldCheck } from 'lucide-react'
 
-export default function CustomerSupportModal({ isOpen, onClose }) {
+export default function CustomerSupportModal({ isOpen, onClose, onStartChat }) {
   if (!isOpen) return null
 
   return (
@@ -45,8 +45,11 @@ export default function CustomerSupportModal({ isOpen, onClose }) {
               <p className="text-xs text-neutral-600 mt-0.5">Average reply time under 2 minutes</p>
               <button
                 type="button"
-                onClick={() => alert('Starting Live Chat Concierge...')}
-                className="mt-2 text-xs font-semibold text-neutral-900 underline hover:text-black cursor-pointer"
+                onClick={() => {
+                  if (onClose) onClose()
+                  if (onStartChat) onStartChat()
+                }}
+                className="mt-2 text-xs font-semibold text-[#D6007A] underline hover:text-black cursor-pointer"
               >
                 Start Chat Now &rarr;
               </button>

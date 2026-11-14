@@ -1,5 +1,5 @@
-// Authentic Bespoke Navigation Taxonomy strictly matching Active API Categories & Subcategories
-// Filtered to active categories: http://43.204.68.67/bespoke/public/api/categories
+// Authentic Bespoke Navigation Taxonomy strictly matching Active Database Categories & Subcategories
+// DB Subcategories verified from MySQL bespoke schema (81 active subcategories across 5 departments)
 
 export const NAVIGATION_CATEGORIES = [
   {
@@ -14,24 +14,55 @@ export const NAVIGATION_CATEGORIES = [
     sections: [
       {
         title: 'Indian & Fusion Wear',
-        categoryId: 48,
-        items: ['Saree', 'Innerwear & Thermals'],
+        categoryId: 3,
+        items: [
+          'Kurtas & Suits',
+          'Kurtis, Tunics & Tops',
+          'Sarees',
+          'Ethnic Wear',
+          'Leggings, Salwars & Churidars',
+          'Skirts & Palazzos',
+          'Dress Materials',
+          'Lehenga Cholis',
+          'Dupattas & Shawls',
+          'Jackets',
+          'Innerwear & Thermals',
+        ],
       },
       {
-        title: 'Coord',
-        categoryId: 53,
-        items: ['Top and skirt'],
+        title: 'Western Wear',
+        categoryId: 14,
+        items: [
+          'Dresses',
+          'Tops',
+          'Tshirts',
+          'Jeans',
+          'Trousers & Capris',
+          'Shorts & Skirts',
+          'Co-ords',
+          'Playsuits',
+          'Jumpsuits',
+          'Shrugs',
+          'Sweaters & Sweatshirts',
+          'Jackets & Coats',
+          'Blazers & Waistcoats',
+        ],
       },
       {
-        title: 'Traditional',
+        title: 'Traditional & Sarees',
         categoryId: 49,
         items: ['Saree'],
+      },
+      {
+        title: 'Co-ords & Sets',
+        categoryId: 53,
+        items: ['Top and skirt'],
       },
     ],
     featured: {
       tag: 'WOMENS LUXURY',
       title: 'Artisanal Weaves & Silhouettes',
-      subtitle: 'Sarees, fusion coords, and traditional cuts direct from atelier.',
+      subtitle: 'Sarees, fusion coords, and western cuts direct from atelier.',
       cta: 'Explore Womens',
       image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=80',
     },
@@ -47,7 +78,54 @@ export const NAVIGATION_CATEGORIES = [
     activeBorderClass: 'border-[var(--theme-secondary)] text-theme-secondary',
     sections: [
       {
-        title: 'mens',
+        title: 'Top Wear',
+        categoryId: 24,
+        items: [
+          'T-Shirts',
+          'Casual Shirts',
+          'Formal Shirts',
+          'Sweatshirts',
+          'Sweaters',
+          'Jackets',
+          'Blazers & Coats',
+          'Suits',
+          'Rain Jackets',
+        ],
+      },
+      {
+        title: 'Indian & Festival Wear',
+        categoryId: 11,
+        items: [
+          'Kurtas & Kurta Sets',
+          'Sherwanis',
+          'Nehru Jackets',
+          'Dhotis',
+        ],
+      },
+      {
+        title: 'Bottom Wear',
+        categoryId: 9,
+        items: [
+          'Jeans',
+          'Casual Trousers',
+          'Formal Trousers',
+          'Shorts',
+          'Track Pants & Joggers',
+        ],
+      },
+      {
+        title: 'Inner Wear & Sleepwear',
+        categoryId: 8,
+        items: [
+          'Briefs & Trunks',
+          'Boxers',
+          'Vests',
+          'Sleepwear & Loungewear',
+          'Thermals',
+        ],
+      },
+      {
+        title: 'Mens Atelier',
         categoryId: 44,
         items: ['T Shirt'],
       },
@@ -55,7 +133,7 @@ export const NAVIGATION_CATEGORIES = [
     featured: {
       tag: 'MENS LUXURY',
       title: 'Modern Classic Fits',
-      subtitle: 'T-Shirts, casuals & modern cuts tailored to perfection.',
+      subtitle: 'Top wear, shirts, bottom wear & festive kurta sets.',
       cta: 'Shop Mens',
       image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=600&q=80',
     },
@@ -71,20 +149,49 @@ export const NAVIGATION_CATEGORIES = [
     activeBorderClass: 'border-[#e91e63] text-[#e91e63]',
     sections: [
       {
-        title: 'Girls Clothing',
-        categoryId: 46,
+        title: 'Boys Clothing',
+        categoryId: 19,
         items: [
-          'uniform',
-          'dress',
-          'Saree',
+          'T-Shirts',
+          'Shirts',
+          'Shorts',
+          'Jeans',
+          'Trousers',
+          'Clothing Sets',
+          'Ethnic Wear',
+          'Track Pants & Pyjamas',
+          'Jacket, Sweater & Sweatshirts',
+          'Party Wear',
+          'Innerwear & Thermals',
+          'Nightwear & Loungewear',
+          'Value Packs',
+        ],
+      },
+      {
+        title: 'Girls Clothing',
+        categoryId: 18,
+        items: [
+          'Dresses',
+          'Tops',
+          'Tshirts',
+          'Clothing Sets',
+          'Lehenga choli',
+          'Kurta Sets',
+          'Party wear',
+          'Dungarees & Jumpsuits',
+          'Skirts & shorts',
+          'Tights & Leggings',
+          'Jeans, Trousers & Capris',
           'Jacket, Sweater & Sweatshirts',
           'Nightwear & Loungewear',
+          'Value Packs',
+          'uniform',
         ],
       },
     ],
     featured: {
       tag: 'LITTLE ATELIER',
-      title: 'Girls & Kids Collections',
+      title: 'Boys & Girls Collections',
       subtitle: 'Breathable, gentle ethnic wear, dresses & uniforms.',
       cta: 'Shop Kids',
       image: 'https://images.unsplash.com/photo-1514090458221-65bb69cf63e6?auto=format&fit=crop&w=600&q=80',
@@ -101,7 +208,7 @@ export const NAVIGATION_CATEGORIES = [
     activeBorderClass: 'border-[var(--theme-primary)] text-theme-primary',
     sections: [
       {
-        title: 'Cup',
+        title: 'Drinkware & Accessories',
         categoryId: 50,
         items: ['CupWithBottle'],
       },
@@ -111,7 +218,7 @@ export const NAVIGATION_CATEGORIES = [
       title: 'Accessories & Drinkware',
       subtitle: 'Curated cups, bottles, lifestyle goods & accessories.',
       cta: 'Discover Lifestyle',
-      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80&q=80',
+      image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80',
     },
   },
   {
@@ -125,7 +232,7 @@ export const NAVIGATION_CATEGORIES = [
     activeBorderClass: 'border-[#9c27b0] text-[#9c27b0]',
     sections: [
       {
-        title: 'Test',
+        title: 'Streetwear & Boxy Fits',
         categoryId: 51,
         items: ['Test'],
       },
@@ -142,21 +249,22 @@ export const NAVIGATION_CATEGORIES = [
 
 export const TRENDING_SEARCHES = [
   'Saree',
-  'T Shirt',
+  'T-Shirts',
+  'Casual Shirts',
+  'Dresses',
+  'Kurtas & Suits',
   'Top and skirt',
-  'uniform',
-  'dress',
   'CupWithBottle',
   'Innerwear & Thermals',
 ]
 
 export const POPULAR_CATEGORIES = [
   { name: 'Indian & Fusion Wear', query: 'Indian & Fusion Wear', badge: 'Hot' },
+  { name: 'Western Wear', query: 'Western Wear', badge: 'Trending' },
+  { name: 'Top Wear', query: 'Top Wear', badge: 'Popular' },
+  { name: 'Boys Clothing', query: 'Boys Clothing', badge: 'Kids' },
   { name: 'Girls Clothing', query: 'Girls Clothing', badge: 'Kids' },
-  { name: 'Coord', query: 'Coord', badge: 'Trending' },
-  { name: 'mens', query: 'mens', badge: 'Popular' },
-  { name: 'Traditional', query: 'Traditional', badge: 'Festive' },
-  { name: 'Cup', query: 'Cup', badge: 'Lifestyle' },
+  { name: 'Traditional & Sarees', query: 'Traditional & Sarees', badge: 'Festive' },
 ]
 
 export const SAMPLE_PRODUCTS = [

@@ -12,6 +12,7 @@ export default function BottomTabBar({
   onTabChange,
   cartCount = 0,
   wishlistCount = 0,
+  userAvatar = null,
 }) {
   const tabs = [
     { id: 'home', label: 'Home', icon: Home },
@@ -39,11 +40,21 @@ export default function BottomTabBar({
               className="flex flex-col items-center justify-center relative py-1 text-center cursor-pointer transition-colors"
             >
               <div className="relative">
-                <Icon
-                  className={`w-5 h-5 transition-colors ${
-                    isActive ? 'text-theme-primary stroke-[2.2]' : 'text-neutral-500'
-                  }`}
-                />
+                {tab.id === 'profile' && userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt="Profile"
+                    className={`w-5 h-5 rounded-full object-cover transition-all ${
+                      isActive ? 'ring-2 ring-[var(--theme-primary)] scale-105' : 'opacity-80'
+                    }`}
+                  />
+                ) : (
+                  <Icon
+                    className={`w-5 h-5 transition-colors ${
+                      isActive ? 'text-theme-primary stroke-[2.2]' : 'text-neutral-500'
+                    }`}
+                  />
+                )}
                 {tab.badge > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 min-w-3.5 h-3.5 px-0.5 bg-theme-gradient text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                     {tab.badge}

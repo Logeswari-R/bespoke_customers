@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import TopBar from './TopBar'
 import MainHeader from './MainHeader'
 import Navbar from './Navbar'
 import MegaMenu from './MegaMenu'
@@ -33,8 +32,14 @@ export default function Header({
   onOpenOrders,
   onOpenAddresses,
   onOpenMeasurements,
+  onOpenNotifications,
+  onOpenInvoices,
+  onOpenPayments,
   onOpenSupport,
+  onOpenProfile,
+  onOpenHistory,
   onCheckout,
+  unreadNotificationsCount = null,
   isCartOpen: externalCartOpen,
   setIsCartOpen: externalSetCartOpen,
   isWishlistOpen: externalWishlistOpen,
@@ -58,8 +63,11 @@ export default function Header({
   const setIsWishlistOpen = externalSetWishlistOpen || setInternalWishlistOpen
 
   const handleTriggerWishlist = () => {
-    if (onOpenWishlist) onOpenWishlist()
-    setIsWishlistOpen(true)
+    if (onOpenWishlist) {
+      onOpenWishlist()
+    } else {
+      setIsWishlistOpen(true)
+    }
   }
 
   // Search query state
@@ -107,7 +115,7 @@ export default function Header({
     }
     hoverTimeoutRef.current = setTimeout(() => {
       setActiveCategory(null)
-    }, 180) // 180ms buffer window
+    }, 120) // Snappy 120ms buffer
   }, [])
 
   const handleDropdownMouseEnter = useCallback(() => {
@@ -123,7 +131,7 @@ export default function Header({
     }
     hoverTimeoutRef.current = setTimeout(() => {
       setActiveCategory(null)
-    }, 150)
+    }, 100) // Snappy 100ms dismissal
   }, [])
 
   const handleCategoryClick = (cat) => {
@@ -153,13 +161,7 @@ export default function Header({
         isScrolled ? 'shadow-md border-neutral-200' : 'shadow-xs border-neutral-100'
       }`}
     >
-      {/* 1. Top Utility Bar */}
-      <TopBar
-        onOpenTrackOrder={onOpenOrders || (() => setIsTrackOrderOpen(true))}
-        onOpenSupport={onOpenSupport || (() => setIsSupportOpen(true))}
-      />
-
-      {/* 2. Main Header */}
+      {/* 1. Main Header */}
       <MainHeader
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -177,7 +179,13 @@ export default function Header({
         onOpenOrders={onOpenOrders}
         onOpenAddresses={onOpenAddresses}
         onOpenMeasurements={onOpenMeasurements}
-        onOpenSupport={onOpenSupport || (() => setIsSupportOpen(true))}
+        onOpenNotifications={onOpenNotifications}
+        onOpenInvoices={onOpenInvoices}
+        onOpenPayments={onOpenPayments}
+        onOpenSupport={onOpenSupport}
+        onOpenProfile={onOpenProfile}
+        onOpenHistory={onOpenHistory}
+        unreadNotificationsCount={unreadNotificationsCount}
       />
 
       {/* 3. Category Navigation Bar (Desktop) */}
@@ -190,13 +198,14 @@ export default function Header({
         onNavMouseLeave={handleNavMouseLeave}
       />
 
-      {/* 4. Full-width Interactive Mega Menu Dropdown */}
+      {/* 4. Luxury Floating Mega Menu Dropdown */}
       <MegaMenu
         category={activeCategory}
         isOpen={Boolean(activeCategory)}
         onMouseEnter={handleDropdownMouseEnter}
         onMouseLeave={handleDropdownMouseLeave}
         onSelectSubcategory={handleSubcategorySelect}
+        onSelectCategory={handleCategoryClick}
       />
 
       {/* 5. Mobile Navigation Drawer */}
@@ -210,7 +219,10 @@ export default function Header({
         wishlistCount={wishlistIds.length || wishlistItems.length}
         cartCount={cartItems.reduce((acc, i) => acc + (i.quantity || 1), 0)}
         onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
-        onOpenSupport={() => setIsSupportOpen(true)}
+        onOpenSupport={onOpenSupport}
+        onOpenAuthModal={onOpenAuthModal}
+        onOpenWishlist={handleTriggerWishlist}
+        onOpenAccount={onOpenProfile || onOpenOrders}
       />
 
       {/* 6. Shopping Bag Slide-Over Drawer */}
@@ -235,6 +247,8 @@ export default function Header({
         onRemoveItem={onRemoveWishlistItem}
         onMoveToCart={onMoveWishlistToCart}
         onSelectProduct={onSelectProduct}
+        cartItems={cartItems}
+        onOpenCart={() => setIsCartOpen(true)}
       />
 
       {/* 7. Track Order Modal */}
@@ -247,6 +261,10 @@ export default function Header({
       <CustomerSupportModal
         isOpen={isSupportOpen}
         onClose={() => setIsSupportOpen(false)}
+        onStartChat={() => {
+          setIsSupportOpen(false)
+          if (onOpenSupport) onOpenSupport()
+        }}
       />
     </header>
   )

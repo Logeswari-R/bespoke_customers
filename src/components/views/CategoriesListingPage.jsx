@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, ChevronRight, Layers } from 'lucide-react'
 import { getCategories } from '../../services/api'
+import { PageLoadingAnimation } from '../animations'
+import { notifyContentReady } from '../../utils/scrollRestoration'
 
 export default function CategoriesListingPage({
   onBack,
@@ -22,11 +24,13 @@ export default function CategoriesListingPage({
       } catch (err) {
         console.error('Failed to load categories:', err)
       } finally {
-        if (!ignore) setIsLoading(false)
+        if (!ignore) {
+          setIsLoading(false)
+          notifyContentReady()
+        }
       }
     }
     loadCategories()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
     return () => {
       ignore = true
     }
@@ -70,12 +74,11 @@ export default function CategoriesListingPage({
       {/* Categories Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {isLoading ? (
-          <div className="min-h-[40vh] flex flex-col items-center justify-center">
-            <div className="w-10 h-10 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="mt-4 text-xs font-semibold text-neutral-500">
-              Loading categories from API...
-            </p>
-          </div>
+          <PageLoadingAnimation
+            message="Loading handcrafted categories..."
+            subMessage="Organizing bespoke silhouettes from master ateliers"
+            minHeight="min-h-[40vh]"
+          />
         ) : categories.length === 0 ? (
           <div className="min-h-[30vh] flex flex-col items-center justify-center bg-white rounded-2xl border border-neutral-200 p-8 text-center">
             <Layers className="w-12 h-12 text-neutral-300 mb-3" />

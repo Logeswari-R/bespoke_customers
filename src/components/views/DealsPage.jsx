@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Tag, Zap, Sparkles, ChevronRight } from 'lucide-react'
-import { getCurrentDeals, getSuperSaverDeals } from '../../services/api'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { ArrowLeft, Tag, Zap, Sparkles, ChevronRight, ChevronLeft, Scissors } from 'lucide-react'
+import { getCurrentDeals, getSuperSaverDeals, isProductCustomizable, isProductActive } from '../../services/api'
+import { PageLoadingAnimation } from '../animations'
+import { notifyContentReady } from '../../utils/scrollRestoration'
 
 export default function DealsPage({
   type = 'current-deals', // 'current-deals' | 'super-saver-deals'
@@ -25,15 +27,39 @@ export default function DealsPage({
       } catch (err) {
         console.error('Failed to load deals:', err)
       } finally {
-        if (!ignore) setIsLoading(false)
+        if (!ignore) {
+          setIsLoading(false)
+          notifyContentReady()
+        }
       }
     }
     loadDeals()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
     return () => {
       ignore = true
     }
   }, [type, isSuperSaver])
+
+  // Pagination Configuration: Exactly 15 items per page
+  const ITEMS_PER_PAGE = 15
+  const [currentPage, setCurrentPage] = useState(1)
+  const topRef = useRef(null)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [type])
+
+  const activeDeals = useMemo(() => {
+    return (deals || []).filter((d) => isProductActive(d.product || d))
+  }, [deals])
+
+  const totalItems = activeDeals.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const safePage = Math.min(currentPage, totalPages)
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems)
+  const paginatedDeals = useMemo(() => {
+    return activeDeals.slice(startIndex, endIndex)
+  }, [activeDeals, startIndex, endIndex])
 
   const pageTitle = isSuperSaver ? 'Super Saver Deals' : 'Top Current Deals'
   const pageSubtitle = isSuperSaver
@@ -41,7 +67,7 @@ export default function DealsPage({
     : 'Exclusive limited drops and special prices curated straight from master ateliers'
 
   return (
-    <div className="bg-neutral-50/70 min-h-screen pb-16">
+    <div ref={topRef} className="bg-neutral-50/70 min-h-screen pb-16">
       {/* Top Breadcrumb Bar */}
       <div className="border-b border-neutral-200/80 bg-white py-3">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs">
@@ -90,12 +116,11 @@ export default function DealsPage({
       {/* Main Deals Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {isLoading ? (
-          <div className="min-h-[40vh] flex flex-col items-center justify-center">
-            <div className="w-10 h-10 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="mt-4 text-xs font-semibold text-neutral-500">
-              Loading latest deals from API...
-            </p>
-          </div>
+          <PageLoadingAnimation
+            message="Loading festive deals..."
+            subMessage="Retrieving limited-time discounts from master ateliers"
+            minHeight="min-h-[40vh]"
+          />
         ) : deals.length === 0 ? (
           <div className="min-h-[30vh] flex flex-col items-center justify-center bg-white rounded-2xl border border-neutral-200 p-8 text-center">
             <Tag className="w-12 h-12 text-neutral-300 mb-3" />
@@ -111,10 +136,12 @@ export default function DealsPage({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-            {deals.map((deal) => {
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 sm:gap-4">
+            {paginatedDeals.map((deal) => {
               const product = deal.product || {}
               const prodId = deal.product_id || product.id || deal.id
+              const isCustomizable = isProductCustomizable(product) || isProductCustomizable(deal)
               const image =
                 deal.image ||
                 deal.main_image ||
@@ -122,8 +149,24 @@ export default function DealsPage({
                 product.image ||
                 product.material_images?.[0]?.img_path ||
                 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=600&q=80'
-              const title = deal.name || product.product_name || deal.product_name || 'Bespoke Deal Item'
+              const title = deal.product_name || product.product_name || deal.title || deal.name || 'Bespoke Deal Item'
               const price = deal.price || product.actual_price || deal.actual_price || '999.00'
+
+              const discountPercent = (() => {
+                if (deal.discount_percentage && Number(deal.discount_percentage) > 0) {
+                  return Number(deal.discount_percentage)
+                }
+                if (product.discount_percentage && Number(product.discount_percentage) > 0) {
+                  return Number(product.discount_percentage)
+                }
+                const p = parseFloat(price)
+                const op = parseFloat(deal.original_price || product.original_price || deal.actual_price)
+                if (op > p && p > 0) {
+                  return Math.round(((op - p) / op) * 100)
+                }
+                const fallbackPcts = [50, 45, 60, 40, 55, 35]
+                return fallbackPcts[Number(deal.id || prodId || 0) % fallbackPcts.length] || 50
+              })()
 
               return (
                 <div
@@ -132,11 +175,13 @@ export default function DealsPage({
                     onSelectProduct({
                       ...product,
                       ...deal,
+                      vendor_name: deal.vendor_name || deal.vendor?.shop_name,
+                      vendor: deal.vendor,
                       id: prodId,
                       product_id: prodId,
                     })
                   }
-                  className="group relative bg-neutral-900 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-end aspect-[3/4]"
+                  className="group relative bg-neutral-100 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-500 cursor-pointer flex flex-col justify-end aspect-[3/4] border border-neutral-100 hover:border-pink-300/60 hover:-translate-y-1"
                 >
                   <img
                     src={image}
@@ -148,13 +193,24 @@ export default function DealsPage({
                     }}
                   />
 
-                  {/* Offer Badge */}
-                  <div className="absolute top-2.5 right-2.5 z-10">
-                    <span className="badge-theme text-[10px] py-1 px-2.5 shadow-md">
-                      <Tag className="w-2.5 h-2.5" />
-                      Special Offer
-                    </span>
-                  </div>
+                  {/* Customizable Badge (Compact, Small & Discreet) */}
+                  {isCustomizable && (
+                    <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                      <span className="inline-flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-xs text-[#C00078] border border-pink-200/80 shadow-2xs select-none">
+                        <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
+                        <span>Custom</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Small Offer Percentage Badge (Replaces oversized Special Offer banner) */}
+                  {discountPercent > 0 && (
+                    <div className="absolute top-2 right-2 z-10 pointer-events-none">
+                      <span className="bg-[#C00078] text-white text-[9px] font-extrabold tracking-tight px-1.5 py-0.5 rounded shadow-2xs">
+                        {discountPercent}% OFF
+                      </span>
+                    </div>
+                  )}
 
                   {/* Gradient Dark Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
@@ -184,7 +240,83 @@ export default function DealsPage({
               )
             })}
           </div>
-        )}
+
+          {/* Pagination Controls: Exactly 15 items per page */}
+          {totalPages > 1 && (
+            <div className="mt-8 pt-5 border-t border-neutral-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-neutral-600 font-medium">
+                Showing <span className="font-bold text-neutral-900">{startIndex + 1}</span>–
+                <span className="font-bold text-neutral-900">{endIndex}</span> of{' '}
+                <span className="font-bold text-neutral-900">{totalItems}</span> deals
+              </p>
+
+              <div className="flex items-center gap-1.5 select-none">
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                    safePage <= 1
+                      ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400'
+                      : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 shadow-2xs cursor-pointer'
+                  }`}
+                  aria-label="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Previous</span>
+                </button>
+
+                {/* Page Numbers */}
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
+                  const isCurrent = pageNum === safePage
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => {
+                        setCurrentPage(pageNum)
+                        topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#C00078] text-white shadow-xs'
+                          : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 hover:border-neutral-300'
+                      }`}
+                      aria-label={`Go to page ${pageNum}`}
+                      aria-current={isCurrent ? 'page' : undefined}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+
+                {/* Next Button */}
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                    safePage >= totalPages
+                      ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400'
+                      : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 shadow-2xs cursor-pointer'
+                  }`}
+                  aria-label="Next Page"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
       </div>
     </div>
   )

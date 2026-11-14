@@ -1,14 +1,18 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Heart,
   ShoppingBag,
   Star,
   SlidersHorizontal,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   Check,
+  Zap,
+  Scissors,
 } from 'lucide-react'
 import { NAVIGATION_CATEGORIES } from '../../data/navigationData'
+import { isProductCustomizable, isProductActive } from '../../services/api'
 
 export default function ProductListing({
   activeFilter,
@@ -19,6 +23,9 @@ export default function ProductListing({
   wishlistIds = [],
   onToggleWishlist,
   onAddToCart,
+  cartItems = [],
+  onOpenCart,
+  onBuyNow,
 }) {
   const [sortBy, setSortBy] = useState('featured')
   const [addedNotice, setAddedNotice] = useState(null)
@@ -32,9 +39,9 @@ export default function ProductListing({
     )
   }, [activeFilter.category, activeFilter.categoryId])
 
-  // Filtered products list
+  // Filtered products list (strictly active only)
   const filteredProducts = useMemo(() => {
-    let result = [...products]
+    let result = products.filter(isProductActive)
 
     if (activeFilter.type === 'query' && activeFilter.query) {
       const q = activeFilter.query.toLowerCase()
@@ -71,6 +78,24 @@ export default function ProductListing({
     return result
   }, [products, activeFilter, sortBy])
 
+  // Pagination Configuration: Exactly 15 items per page
+  const ITEMS_PER_PAGE = 15
+  const [currentPage, setCurrentPage] = useState(1)
+  const topRef = useRef(null)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeFilter, sortBy])
+
+  const totalItems = filteredProducts.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE))
+  const safePage = Math.min(currentPage, totalPages)
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems)
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(startIndex, endIndex)
+  }, [filteredProducts, startIndex, endIndex])
+
   const handleAdd = (product) => {
     onAddToCart(product)
     setAddedNotice(`Added "${product.title}" to bag`)
@@ -78,7 +103,7 @@ export default function ProductListing({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50/60 pb-20">
+    <div ref={topRef} className="min-h-screen bg-neutral-50/60 pb-20">
       {/* Toast Notification */}
       {addedNotice && (
         <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -264,13 +289,14 @@ export default function ProductListing({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map((product) => {
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 sm:gap-4">
+            {paginatedProducts.map((product) => {
               const isWishlisted = wishlistIds.includes(product.id)
+              const isCustomizable = isProductCustomizable(product)
 
               return (
                 <div
-                  key={product.id}
+                  key={product.unique_id || `${product.id}-${product.variant_id || 0}`}
                   className="group bg-white rounded-2xl overflow-hidden border border-neutral-200/70 hover:border-neutral-300 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col"
                 >
                   {/* Product Image & Badges */}
@@ -282,10 +308,22 @@ export default function ProductListing({
                       loading="lazy"
                     />
 
-                    {/* Tag badge */}
-                    {product.tag && (
-                      <span className="absolute top-3 left-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/95 text-neutral-900 shadow-xs">
+                    {/* Customizable Badge (Compact, Small & Discreet) */}
+                    {isCustomizable ? (
+                      <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-xs text-[#C00078] border border-pink-200/80 shadow-2xs select-none">
+                        <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
+                        <span>Custom</span>
+                      </span>
+                    ) : product.tag ? (
+                      <span className="absolute top-2 left-2 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/95 text-neutral-900 shadow-2xs">
                         {product.tag}
+                      </span>
+                    ) : null}
+
+                    {/* Small Offer Percentage Badge */}
+                    {product.discount_percentage > 0 && (
+                      <span className="absolute top-2 right-9 z-10 bg-[#C00078] text-white text-[8.5px] font-extrabold tracking-tight px-1.5 py-0.5 rounded shadow-2xs pointer-events-none">
+                        {product.discount_percentage}% OFF
                       </span>
                     )}
 
@@ -293,7 +331,7 @@ export default function ProductListing({
                     <button
                       type="button"
                       onClick={() => onToggleWishlist(product.id)}
-                      className={`absolute top-3 right-3 p-2 rounded-full transition-all cursor-pointer shadow-sm ${
+                      className={`absolute top-2 right-2 p-1.5 rounded-full transition-all cursor-pointer shadow-xs ${
                         isWishlisted
                           ? 'bg-rose-50 text-rose-600'
                           : 'bg-white/90 text-neutral-600 hover:text-black hover:bg-white'
@@ -301,67 +339,245 @@ export default function ProductListing({
                       aria-label="Wishlist toggle"
                     >
                       <Heart
-                        className={`w-4 h-4 ${
+                        className={`w-3.5 h-3.5 ${
                           isWishlisted ? 'fill-rose-600 stroke-rose-600' : ''
                         }`}
                       />
                     </button>
 
-                    {/* Quick Add overlay button */}
-                    <div className="absolute inset-x-3 bottom-3 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0">
-                      <button
-                        onClick={() => handleAdd(product)}
-                        className="w-full py-2.5 bg-white/95 backdrop-blur-xs hover:bg-neutral-900 hover:text-white text-neutral-900 text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        <span>Add to Bag</span>
-                      </button>
-                    </div>
+                    {/* Single Line Quick Action overlay */}
+                    {(() => {
+                      const isInCart = cartItems.some(
+                        (c) => Number(c.product_id || c.product?.id || c.id) === Number(product.id)
+                      )
+                      return (
+                        <div className="absolute inset-x-2 bottom-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 hidden sm:flex items-center gap-1.5 z-10">
+                          {isInCart ? (
+                            <button
+                              onClick={() => {
+                                if (onOpenCart) onOpenCart()
+                              }}
+                              className="flex-1 h-7 sm:h-8 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[9.5px] font-semibold uppercase tracking-wider rounded-[9px] flex items-center justify-center gap-1 cursor-pointer transition-colors duration-150 ease-out border-0 shadow-none"
+                              title="In Bag - Go to Bag"
+                            >
+                              <Check className="w-3 h-3 stroke-[2.5] shrink-0 text-white" />
+                              <span className="truncate">In Bag</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleAdd(product)}
+                              className="flex-1 h-7 sm:h-8 px-2 bg-[#C00078] hover:bg-[#A80069] active:bg-[#97005F] text-white text-[9.5px] font-semibold uppercase tracking-wider rounded-[9px] transition-colors duration-150 ease-out flex items-center justify-center gap-1 cursor-pointer border-0 shadow-none"
+                              title="Add to Bag"
+                            >
+                              <ShoppingBag className="w-3 h-3 shrink-0 text-white" />
+                              <span className="truncate">Add to Bag</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              if (onBuyNow) {
+                                onBuyNow(product)
+                              } else {
+                                handleAdd(product)
+                              }
+                            }}
+                            className="flex-1 h-7 sm:h-8 px-2 bg-[#222222] hover:bg-[#111111] active:bg-[#000000] text-white text-[9.5px] font-semibold uppercase tracking-wider rounded-[9px] transition-colors duration-150 ease-out flex items-center justify-center gap-1 cursor-pointer border-0 shadow-none"
+                            title="Buy Now"
+                          >
+                            <Zap className="w-3 h-3 text-white fill-white shrink-0" />
+                            <span className="truncate">Buy Now</span>
+                          </button>
+                        </div>
+                      )
+                    })()}
                   </div>
 
-                  {/* Product Meta */}
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-1">
-                        <span className="uppercase tracking-wider font-semibold">
-                          {product.category} &bull; {product.subcategory}
-                        </span>
-                        <div className="flex items-center gap-1 text-amber-500 font-bold">
-                          <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" />
-                          <span>{product.rating}</span>
-                        </div>
-                      </div>
+                  {/* Product Info Section (Redesigned with Strict Alignment & Tokens) */}
+                  <div className="p-4 flex-1 flex flex-col justify-between bg-white text-left">
+                    <div className="flex-1 flex flex-col">
+                      {/* Row 1: Product name on left corner & Custom badge on right corner */}
+                      <div className="flex items-start justify-between gap-2">
+                        <h3
+                          className="text-[16px] font-semibold text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
+                          title={product.title || product.product_name}
+                        >
+                          {product.title || product.product_name}
+                        </h3>
 
-                      <h3 className="text-sm font-bold text-neutral-900 group-hover:text-black line-clamp-2">
-                        {product.title}
-                      </h3>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-base font-extrabold text-neutral-900">
-                          ${product.price}
-                        </span>
-                        {product.originalPrice && (
-                          <span className="text-xs text-neutral-400 line-through">
-                            ${product.originalPrice}
+                        {isCustomizable && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
+                            <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
+                            <span>CUSTOM</span>
                           </span>
                         )}
                       </div>
 
-                      <button
-                        onClick={() => handleAdd(product)}
-                        className="sm:hidden p-2 bg-neutral-900 text-white rounded-lg cursor-pointer"
-                        aria-label="Add to bag"
-                      >
-                        <ShoppingBag className="w-4 h-4" />
-                      </button>
+                      {/* Row 2: Vendor / shop name */}
+                      <div className="flex items-center justify-between gap-1.5 mt-1">
+                        <p
+                          className="text-[13.5px] font-normal text-[#77717C] text-left truncate"
+                          title={product.shop_name || product.vendor?.shop_name || product.vendor_name || product.brand || 'Bespoke Atelier'}
+                        >
+                          {product.shop_name || product.vendor?.shop_name || product.vendor_name || product.brand || 'Bespoke Atelier'}
+                        </p>
+                        {product.variant_name && (
+                          <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full border border-neutral-200/60 truncate max-w-[110px] shrink-0" title={`Variant: ${product.variant_name}`}>
+                            {product.variant_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 4. Subtle divider & 5. Horizontal Price Layout */}
+                    <div className="border-t border-[#F0E5EC] mt-3 pt-3 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="text-[20px] font-bold text-[#C00078] leading-none">
+                          ₹{product.price}
+                        </span>
+                        {product.originalPrice && Number(product.originalPrice) > Number(product.price) && (
+                          <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
+                            ₹{product.originalPrice}
+                          </span>
+                        )}
+                        {product.discount_percentage > 0 && (
+                          <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
+                            {product.discount_percentage}% OFF
+                          </span>
+                        )}
+                      </div>
+
+                      {(() => {
+                        const isInCart = cartItems.some(
+                          (c) => Number(c.product_id || c.product?.id || c.id) === Number(product.id)
+                        )
+                        return (
+                          <div className="flex items-center gap-1.5 sm:hidden shrink-0">
+                            {isInCart ? (
+                              <button
+                                onClick={() => {
+                                  if (onOpenCart) onOpenCart()
+                                }}
+                                className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-[9px] cursor-pointer shadow-none flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out border-0"
+                                aria-label="Go to bag"
+                                title="In Bag - Go to Bag"
+                              >
+                                <Check className="w-3 h-3 text-white stroke-[2.5]" />
+                                <span>In Bag</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleAdd(product)}
+                                className="px-2.5 py-1.5 bg-[#C00078] hover:bg-[#A80069] active:bg-[#97005F] text-white rounded-[9px] cursor-pointer shadow-none flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out border-0"
+                                aria-label="Add to bag"
+                                title="Add to Bag"
+                              >
+                                <ShoppingBag className="w-3 h-3 text-white" />
+                                <span>Add</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                if (onBuyNow) {
+                                  onBuyNow(product)
+                                } else {
+                                  handleAdd(product)
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-[#222222] hover:bg-[#111111] active:bg-[#000000] text-white text-[10px] font-semibold uppercase tracking-wider rounded-[9px] cursor-pointer shadow-none flex items-center gap-1 transition-colors duration-150 ease-out border-0"
+                              title="Buy Now"
+                            >
+                              <Zap className="w-3 h-3 text-white fill-white" />
+                              <span>Buy</span>
+                            </button>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                      })()}
                     </div>
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {/* Pagination Controls: Exactly 15 items per page */}
+          {totalPages > 1 && (
+            <div className="mt-8 pt-5 border-t border-neutral-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-neutral-600 font-medium">
+                Showing <span className="font-bold text-neutral-900">{startIndex + 1}</span>–
+                <span className="font-bold text-neutral-900">{endIndex}</span> of{' '}
+                <span className="font-bold text-neutral-900">{totalItems}</span> creations
+              </p>
+
+              <div className="flex items-center gap-1.5 select-none">
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                    safePage <= 1
+                      ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400'
+                      : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 shadow-2xs cursor-pointer'
+                  }`}
+                  aria-label="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Previous</span>
+                </button>
+
+                {/* Page Numbers */}
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
+                  const isCurrent = pageNum === safePage
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => {
+                        setCurrentPage(pageNum)
+                        topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#C00078] text-white shadow-xs'
+                          : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 hover:border-neutral-300'
+                      }`}
+                      aria-label={`Go to page ${pageNum}`}
+                      aria-current={isCurrent ? 'page' : undefined}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+
+                {/* Next Button */}
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                    safePage >= totalPages
+                      ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400'
+                      : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200 shadow-2xs cursor-pointer'
+                  }`}
+                  aria-label="Next Page"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         )}
       </div>
     </div>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Store, ArrowRight } from 'lucide-react'
 import { getSpotlights } from '../../services/api'
+import { PageLoadingAnimation } from '../animations'
+import { notifyContentReady } from '../../utils/scrollRestoration'
 
 export default function ShopsListingPage({
   onBack,
@@ -21,11 +23,13 @@ export default function ShopsListingPage({
       } catch (err) {
         console.error('Failed to load shops from API:', err)
       } finally {
-        if (!ignore) setIsLoading(false)
+        if (!ignore) {
+          setIsLoading(false)
+          notifyContentReady()
+        }
       }
     }
     loadShops()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
     return () => {
       ignore = true
     }
@@ -69,12 +73,11 @@ export default function ShopsListingPage({
       {/* Shops Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {isLoading ? (
-          <div className="min-h-[40vh] flex flex-col items-center justify-center">
-            <div className="w-10 h-10 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="mt-4 text-xs font-semibold text-neutral-500">
-              Loading spotlight boutiques from API...
-            </p>
-          </div>
+          <PageLoadingAnimation
+            message="Loading spotlight boutiques..."
+            subMessage="Discovering curated couture shops & partners"
+            minHeight="min-h-[40vh]"
+          />
         ) : shops.length === 0 ? (
           <div className="min-h-[30vh] flex flex-col items-center justify-center bg-white rounded-2xl border border-neutral-200 p-8 text-center">
             <Store className="w-12 h-12 text-neutral-300 mb-3" />

@@ -2,6 +2,8 @@
 // Node.js Backend (bespokeBackend): http://localhost:8080
 // Laravel Remote API: http://43.204.68.67/bespoke/public/api/
 
+import { NAVIGATION_CATEGORIES } from '../data/navigationData'
+
 export const NODE_API = import.meta.env.VITE_NODE_API || 'http://localhost:8080'
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://43.204.68.67/bespoke/public/api'
 export const S3_BASE_URL = import.meta.env.VITE_S3_BASE_URL || 'https://bespoke-2026.s3.ap-south-1.amazonaws.com'
@@ -181,14 +183,43 @@ export async function getDesignerDetails(designerId) {
  * 6. Top Current Deals
  */
 export async function getCurrentDeals() {
-  return await fetchEndpoint('/current-deals')
+  const deals = await fetchEndpoint('/current-deals')
+  return Array.isArray(deals) ? deals.filter((d) => isProductActive(d.product || d)) : deals
 }
 
 /**
  * 7. Super Saver Deals
  */
 export async function getSuperSaverDeals() {
-  return await fetchEndpoint('/supersaver-deals')
+  const deals = await fetchEndpoint('/supersaver-deals')
+  return Array.isArray(deals) ? deals.filter((d) => isProductActive(d.product || d)) : deals
+}
+
+/**
+ * Helper: Strictly determine if a product is active based on product_materials.is_active = '1'
+ */
+export function isProductActive(product) {
+  if (!product) return false
+  if (product.is_active === '0' || product.is_active === 0 || product.is_active === false) {
+    return false
+  }
+  if (product.action === '1' || product.action === 1) {
+    return false
+  }
+  const mats = product.product_materials || product.materials
+  if (Array.isArray(mats) && mats.length > 0) {
+    const hasActiveMat = mats.some((m) => {
+      const activeVal = m.is_active !== undefined ? m.is_active : m.active
+      const isAct =
+        activeVal === undefined || activeVal === null
+          ? true
+          : String(activeVal) === '1' || activeVal === 1 || activeVal === true
+      const isNotDeleted = m.action === undefined || m.action === null ? true : String(m.action) !== '1'
+      return isAct && isNotDeleted
+    })
+    if (!hasActiveMat) return false
+  }
+  return true
 }
 
 /**
@@ -202,8 +233,8 @@ export async function getProducts(params = {}) {
     const res = await fetch(url)
     if (res.ok) {
       const json = await res.json()
-      if (json.status && Array.isArray(json.data) && json.data.length > 0) {
-        return json.data
+      if (json.status && Array.isArray(json.data)) {
+        return json.data.filter(isProductActive)
       }
     }
   } catch (nodeErr) {
@@ -212,10 +243,12 @@ export async function getProducts(params = {}) {
 
   // Fallback to Laravel endpoints
   try {
-    return await fetchEndpoint('/product/list?per_page=50')
+    const list = await fetchEndpoint('/product/list?per_page=50')
+    return Array.isArray(list) ? list.filter(isProductActive) : []
   } catch {
     try {
-      return await fetchEndpoint('/products?per_page=50')
+      const list = await fetchEndpoint('/products?per_page=50')
+      return Array.isArray(list) ? list.filter(isProductActive) : []
     } catch (err) {
       console.warn('Could not fetch products from API, returning empty list', err)
       return []
@@ -318,6 +351,7 @@ export async function getProductDetails(productId) {
 export function buildTaxonomy(categoriesData = [], subcategoriesData = []) {
   const categoryMap = new Map()
 
+  // 1. Populate initial categories from API
   categoriesData.forEach((cat) => {
     const type = String(cat.type ?? cat.category_type ?? '0')
     const id = Number(cat.id)
@@ -336,7 +370,7 @@ export function buildTaxonomy(categoriesData = [], subcategoriesData = []) {
     })
   })
 
-  // Ensure active Unisex category 51 is present if in subcategories
+  // Ensure active Unisex category 51 is present
   if (!categoryMap.has(51)) {
     categoryMap.set(51, {
       id: 51,
@@ -347,12 +381,35 @@ export function buildTaxonomy(categoriesData = [], subcategoriesData = []) {
     })
   }
 
-  // Strictly link subcategories to their exact active category ID
+  // 2. Link ALL authentic subcategories from MySQL database
+  // Auto-register parent category if it was not in categoriesData
   subcategoriesData.forEach((sub) => {
     const catId = Number(sub.category_id || sub.category?.id)
+    if (!catId) return
+
     if (!categoryMap.has(catId)) {
-      // Ignore subcategories belonging to old/deleted categories
-      return
+      const catObj = sub.category || {}
+      categoryMap.set(catId, {
+        id: catId,
+        name:
+          catObj.name ||
+          (sub.category_type === '1'
+            ? 'Men Collection'
+            : sub.category_type === '2'
+            ? 'Women Collection'
+            : sub.category_type === '3'
+            ? 'Kids Collection'
+            : 'Collection'),
+        type: String(sub.category_type ?? catObj.type ?? '0'),
+        image:
+          formatImageUrl(catObj.img_path) ||
+          formatImageUrl(sub.img_path) ||
+          catObj.image_url ||
+          sub.image_url ||
+          'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80',
+        action: '0',
+        subcategories: [],
+      })
     }
 
     const targetCategory = categoryMap.get(catId)
@@ -459,20 +516,54 @@ export function buildTaxonomy(categoriesData = [], subcategoriesData = []) {
     },
   }
 
+  // Canonical priority order of category IDs per department
+  const typeOrder = {
+    '2': [3, 14, 49, 53, 48, 54],
+    '1': [24, 11, 9, 8, 44, 52],
+    '3': [19, 18, 46, 45],
+    '0': [50],
+    '4': [51],
+  }
+
   const departments = ['2', '1', '0', '3', '4'].map((typeKey) => {
     const meta = typeToDepartment[typeKey]
+    const preferredOrder = typeOrder[typeKey] || []
     const categoriesOfType = allCategories.filter((c) => c.type === typeKey)
 
-    // Strictly keep only categories that have authentic subcategories from the API
-    const sections = categoriesOfType
-      .filter((cat) => cat.subcategories && cat.subcategories.length > 0)
-      .map((cat) => ({
-        title: cat.name,
-        categoryId: cat.id,
-        categoryImage: cat.image,
-        items: cat.subcategories.map((s) => s.name),
-        subcategoriesData: cat.subcategories,
-      }))
+    categoriesOfType.sort((a, b) => {
+      const idxA = preferredOrder.indexOf(a.id)
+      const idxB = preferredOrder.indexOf(b.id)
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1) return -1
+      if (idxB !== -1) return 1
+      return b.subcategories.length - a.subcategories.length
+    })
+
+    // Merge sections by normalized title to avoid broken fragment sections
+    const sectionMap = new Map()
+    categoriesOfType.forEach((cat) => {
+      if (!cat.subcategories || cat.subcategories.length === 0) return
+      const normalizedTitle = cat.name.trim()
+      const key = normalizedTitle.toLowerCase()
+      if (!sectionMap.has(key)) {
+        sectionMap.set(key, {
+          title: normalizedTitle,
+          categoryId: cat.id,
+          categoryImage: cat.image,
+          items: [],
+          subcategoriesData: [],
+        })
+      }
+      const sec = sectionMap.get(key)
+      cat.subcategories.forEach((sub) => {
+        if (!sec.items.includes(sub.name)) {
+          sec.items.push(sub.name)
+          sec.subcategoriesData.push(sub)
+        }
+      })
+    })
+
+    const sections = Array.from(sectionMap.values())
 
     return {
       id: meta.id,
@@ -533,7 +624,7 @@ export async function getHomePageData() {
     currentDeals: safeVal(currentDeals),
     superSaverDeals: safeVal(superSaverDeals),
     products: safeVal(products),
-    departments: taxonomy.departments,
+    departments: NAVIGATION_CATEGORIES,
     allCategories: taxonomy.allCategories,
   }
 }
@@ -1186,13 +1277,27 @@ export async function getSavedMeasurementProfiles(userId) {
     const res = await fetch(`${NODE_API}/api/customer-measurement/profiles?user_id=${userId}`)
     if (res.ok) {
       const json = await res.json()
-      return { status: json.status === true, data: json.data || [] }
+      const rawList = Array.isArray(json.data)
+        ? json.data
+        : Array.isArray(json.data?.profiles)
+        ? json.data.profiles
+        : Array.isArray(json.profiles)
+        ? json.profiles
+        : []
+      return { status: json.status === true || json.status === 'true', data: rawList }
     }
   } catch {
     try {
       const res = await fetch(`${PROXY_URL}/customer-measurement/profiles?user_id=${userId}`)
       const json = await res.json()
-      return { status: json.status === true, data: json.data || [] }
+      const rawList = Array.isArray(json.data)
+        ? json.data
+        : Array.isArray(json.data?.profiles)
+        ? json.data.profiles
+        : Array.isArray(json.profiles)
+        ? json.profiles
+        : []
+      return { status: json.status === true || json.status === 'true', data: rawList }
     } catch (err) {
       console.error('Error fetching measurement profiles:', err)
     }
@@ -1264,39 +1369,731 @@ export async function storeCartMeasurementApi({ cartId, measurementDetails = [] 
 
 /**
  * ============================================================================
- * STORE / PRODUCT REVIEWS
+ * STORE / PRODUCT REVIEWS & RATINGS
  * ============================================================================
  */
-export async function submitProductReview({ userId, productId, rating, comment }) {
+
+/**
+ * Dynamic Star Rating Color System:
+ * - 1 to 2 Stars: Red
+ * - 3 Stars: Orange
+ * - 4 to 5 Stars: Green
+ */
+export function getStarColor(rating) {
+  const score = Math.round(Number(rating) || 0)
+  if (score <= 2) {
+    return {
+      starClass: 'text-red-500 fill-red-500',
+      textClass: 'text-red-600',
+      bgClass: 'bg-red-50',
+      borderClass: 'border-red-200',
+      badgeClass: 'bg-red-50 text-red-700 border-red-200',
+      cardBg: 'from-red-50/70 via-red-50/20 to-white border-red-200/80',
+      colorName: 'red',
+      hex: '#EF4444',
+    }
+  }
+  if (score === 3) {
+    return {
+      starClass: 'text-orange-500 fill-orange-500',
+      textClass: 'text-orange-600',
+      bgClass: 'bg-orange-50',
+      borderClass: 'border-orange-200',
+      badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+      cardBg: 'from-orange-50/70 via-orange-50/20 to-white border-orange-200/80',
+      colorName: 'orange',
+      hex: '#F97316',
+    }
+  }
+  return {
+    starClass: 'text-emerald-500 fill-emerald-500',
+    textClass: 'text-emerald-600',
+    bgClass: 'bg-emerald-50',
+    borderClass: 'border-emerald-200',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cardBg: 'from-emerald-50/70 via-emerald-50/20 to-white border-emerald-200/80',
+    colorName: 'green',
+    hex: '#10B981',
+  }
+}
+
+/**
+ * Universal Review Submitter: Supports both new reviews and updates/resubmission.
+ * Supports Sale Order items (/api/user/sale-order/review) and General reviews (/api/store_review),
+ * as well as multipart AWS S3 photo uploads and deleted image tracking.
+ */
+export async function submitProductReview(params) {
   try {
-    const res = await fetch(`${NODE_API}/api/store_review`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: userId,
-        product_id: productId,
-        rating,
-        comment,
-      }),
-    })
-    return await res.json()
-  } catch {
-    try {
-      const res = await fetch(`${PROXY_URL}/store_review`, {
+    const userId = params.userId || params.user_id
+    const productId = params.productId || params.product_id
+    const saleOrderId = params.saleOrderId || params.sale_order_id
+    const rating = params.rating !== undefined ? params.rating : params.ratings
+    const review =
+      params.review !== undefined
+        ? params.review
+        : params.comment !== undefined
+        ? params.comment
+        : params.comments
+    const images = params.images || params.image || []
+    const deletedImageIds = params.deletedImageIds || params.deleted_image_ids || []
+
+    const hasFiles =
+      Array.isArray(images) &&
+      images.some(
+        (img) =>
+          (typeof File !== 'undefined' && img instanceof File) ||
+          (typeof Blob !== 'undefined' && img instanceof Blob)
+      )
+
+    const targetUrl = saleOrderId
+      ? `${NODE_API}/api/user/sale-order/review`
+      : `${NODE_API}/api/store_review`
+
+    let res
+    if (hasFiles) {
+      const formData = new FormData()
+      if (userId) formData.append('user_id', String(userId))
+      if (productId) formData.append('product_id', String(productId))
+      if (saleOrderId) formData.append('sale_order_id', String(saleOrderId))
+      if (rating !== undefined && rating !== null) {
+        formData.append('ratings', String(rating))
+        formData.append('rating', String(rating))
+      }
+      if (review !== undefined && review !== null) {
+        formData.append('review', String(review))
+        formData.append('comments', String(review))
+      }
+      images.forEach((img) => {
+        if (
+          (typeof File !== 'undefined' && img instanceof File) ||
+          (typeof Blob !== 'undefined' && img instanceof Blob)
+        ) {
+          formData.append('images', img)
+        }
+      })
+      if (deletedImageIds && (Array.isArray(deletedImageIds) ? deletedImageIds.length > 0 : true)) {
+        formData.append(
+          'deleted_image_ids',
+          typeof deletedImageIds === 'string' ? deletedImageIds : JSON.stringify(deletedImageIds)
+        )
+      }
+      res = await fetch(targetUrl, {
+        method: 'POST',
+        body: formData,
+      })
+    } else {
+      res = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId,
           product_id: productId,
-          rating,
-          comment,
+          sale_order_id: saleOrderId,
+          ratings: rating,
+          rating: rating,
+          review: review,
+          comments: review,
+          comment: review,
+          images: Array.isArray(images) ? images : images ? [images] : [],
+          deleted_image_ids: deletedImageIds,
         }),
       })
-      return await res.json()
+    }
+
+    const data = await res.json()
+    return data
+  } catch (err) {
+    console.error('Error in submitProductReview:', err)
+    return { status: false, message: err.message || 'Failed to submit review' }
+  }
+}
+
+/**
+ * Check if a product has customizable capability based on live API fields
+ */
+export function isProductCustomizable(product) {
+  if (!product) return false
+  return Boolean(
+    product.is_customizable === true ||
+    product.is_customizable === 1 ||
+    String(product.is_customizable) === '1' ||
+    String(product.is_customizable).toLowerCase() === 'true' ||
+    product.is_customisable === true ||
+    product.is_customisable === 1 ||
+    String(product.is_customisable) === '1' ||
+    String(product.is_customisable).toLowerCase() === 'true' ||
+    product.product_type === 0 ||
+    product.product_type === '0' ||
+    product.order_type === 'Customizable' ||
+    (Array.isArray(product.product_types) && product.product_types.includes('CUSTOMIZABLE')) ||
+    (typeof product.product_type === 'string' && product.product_type.toUpperCase().includes('CUSTOM')) ||
+    (Array.isArray(product.prices?.customizable_products) && product.prices.customizable_products.length > 0)
+  )
+}
+
+/**
+ * Authoritative unread notifications count from backend API
+ */
+export async function getUnreadNotificationCountApi({ recipientType = 'user', recipientId } = {}) {
+  try {
+    const res = await fetch(`${NODE_API}/api/notifications/unread-count?recipient_type=${recipientType}&recipient_id=${recipientId}`)
+    if (res.ok) {
+      const json = await res.json()
+      return json.unread_count ?? json.count ?? 0
+    }
+  } catch (err) {
+    console.warn('Notice: error fetching unread notifications count:', err.message)
+  }
+  return 0
+}
+
+/**
+ * Mark all notifications as read
+ */
+export async function markAllNotificationsReadApi({ recipientType = 'user', recipientId } = {}) {
+  try {
+    const res = await fetch(`${NODE_API}/api/notifications/read-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_type: recipientType, recipient_id: recipientId }),
+    })
+    return res.ok
+  } catch (err) {
+    console.warn('Notice: error marking all notifications read:', err.message)
+    return false
+  }
+}
+
+/**
+ * Get sizewise measurements for product price ID
+ */
+export async function getMeasurementsByPrice(priceId) {
+  if (!priceId) return { status: false, data: [] }
+  try {
+    const res = await fetch(`${NODE_API}/api/measurements/by-price?price_id=${priceId}`)
+    if (res.ok) {
+      const json = await res.json()
+      return json
+    }
+    // Fallback if accessed via sizewise endpoint
+    const fallbackRes = await fetch(`${NODE_API}/api/product-measurements/sizewise/${priceId}`)
+    if (fallbackRes.ok) {
+      const json = await fallbackRes.json()
+      return json
+    }
+  } catch (err) {
+    console.warn('Notice: error fetching measurements by price:', err.message)
+  }
+  return { status: false, data: [] }
+}
+
+/**
+ * Global Search Autocomplete Suggestions API
+ */
+export async function getSearchSuggestionsApi(query = '', signal = null) {
+  const cleanQ = (query || '').trim()
+  try {
+    const url = `${NODE_API}/api/search/suggestions?q=${encodeURIComponent(cleanQ)}`
+    const res = await fetch(url, {
+      signal,
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.status && json.data) {
+      if (Array.isArray(json.data.products)) {
+        json.data.products = json.data.products.filter(isProductActive)
+      }
+      return json.data
+    }
+    if (json.data && Array.isArray(json.data.products)) {
+      json.data.products = json.data.products.filter(isProductActive)
+    }
+    return json.data || null
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+    console.warn('Search suggestions API warning:', err.message)
+    return null
+  }
+}
+
+/**
+ * Global Faceted Search Products API
+ */
+export async function getSearchProductsApi(params = {}, signal = null) {
+  try {
+    const queryParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        queryParams.append(key, val)
+      }
+    })
+
+    const url = `${NODE_API}/api/search/products?${queryParams.toString()}`
+    const res = await fetch(url, {
+      signal,
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.status && json.data) {
+      if (Array.isArray(json.data.products)) {
+        json.data.products = json.data.products.filter(isProductActive)
+      }
+      return json.data
+    }
+    if (json.data && Array.isArray(json.data.products)) {
+      json.data.products = json.data.products.filter(isProductActive)
+    }
+    return json.data || null
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+    console.warn('Search products API warning:', err.message)
+    return null
+  }
+}
+
+/**
+ * Intelligent Product Recommendations
+ * GET /api/products/:productId/recommendations
+ */
+export async function getProductRecommendationsApi(productId, options = {}) {
+  if (!productId) return { status: false, recommendations: [] }
+  const cleanId = String(productId).trim()
+  const limit = options?.limit || 12
+  const signal = options?.signal
+
+  // 1. Primary: Node.js backend
+  try {
+    const url = `${NODE_API}/api/products/${cleanId}/recommendations?limit=${limit}`
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
+    if (res.ok) {
+      const json = await res.json()
+      if (json && json.status && Array.isArray(json.recommendations)) {
+        json.recommendations = json.recommendations.filter(isProductActive)
+        return json
+      }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+  }
+
+  // 2. Fallback: query parameter path
+  try {
+    const url = `${NODE_API}/api/show/product/recommendations?product_id=${cleanId}&limit=${limit}`
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
+    if (res.ok) {
+      const json = await res.json()
+      if (json && json.status && Array.isArray(json.recommendations)) {
+        json.recommendations = json.recommendations.filter(isProductActive)
+        return json
+      }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+  }
+
+  return { status: false, recommendations: [] }
+}
+
+/**
+ * Apply promo code
+ */
+export async function applyPromoCodeApi({ code, userId, subtotal, itemCount }) {
+  const payload = {
+    code,
+    user_id: userId,
+    subtotal: Number(subtotal) || 0,
+    item_count: Number(itemCount) || 1,
+  }
+
+  try {
+    const res = await fetch(`${NODE_API}/api/promo-codes/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const json = await res.json()
+    return json
+  } catch {
+    try {
+      const res = await fetch(`${PROXY_URL}/promo-codes/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      return json
     } catch (err) {
-      return { status: false, message: err.message }
+      console.error('Error applying promo code:', err)
+      return {
+        status: 'false',
+        success: false,
+        message: 'Unable to connect to promo code server.',
+      }
     }
   }
 }
+
+/**
+ * Delivery charge API
+ */
+export async function getDeliveryCharge() {
+  try {
+    const res = await fetch(`${NODE_API}/api/delivery-charge`)
+    if (res.ok) {
+      const json = await res.json()
+      if (json.status && json.data && json.data.delivery_amount !== undefined) {
+        return Number(json.data.delivery_amount)
+      }
+      if (json.data && json.data.delivery_charge !== undefined) {
+        return Number(json.data.delivery_charge)
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return 49
+}
+
+/**
+ * Payment failed callback API
+ */
+export async function paymentFailedApi({ razorpay_order_id } = {}) {
+  try {
+    const res = await fetch(`${NODE_API}/api/payment-failed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ razorpay_order_id }),
+    })
+    return await res.json()
+  } catch (e) {
+    console.warn('paymentFailedApi notice:', e)
+    return { status: false }
+  }
+}
+
+/**
+ * User order review details
+ */
+export async function getUserReviewDetailsApi({ saleOrderId, userId }) {
+  const params = new URLSearchParams()
+  if (saleOrderId) params.append('sale_order_id', saleOrderId)
+  if (userId) params.append('user_id', userId)
+
+  try {
+    const res = await fetch(`${NODE_API}/api/user/sale-order/review?${params.toString()}`)
+    if (res.ok) return await res.json()
+  } catch {
+    try {
+      const res = await fetch(`${PROXY_URL}/user/sale-order/review?${params.toString()}`)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.error('Error fetching user review details:', err)
+    }
+  }
+  return { status: false, data: [] }
+}
+
+/**
+ * Delete user account
+ */
+export async function deleteUserAccountApi(userId) {
+  try {
+    const res = await fetch(`${NODE_API}/api/user/delete/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    const json = await res.json()
+    return json
+  } catch (err) {
+    console.error('Error deleting account:', err)
+    return { status: 'false', message: err.message || 'Failed to delete account' }
+  }
+}
+
+/**
+ * Product sizewise measurements
+ */
+export async function getProductMeasurementsSizeWise(productId) {
+  try {
+    const res = await fetch(`${NODE_API}/api/product-measurements/sizewise/${productId}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('Notice: error fetching sizewise measurements:', err.message)
+    return { status: false, data: null }
+  }
+}
+
+/**
+ * Update user profile
+ */
+export async function updateUserProfileApi(userId, data) {
+  try {
+    const isFormData = typeof FormData !== 'undefined' && data instanceof FormData
+    const res = await fetch(`${NODE_API}/api/user/edit/${userId}`, {
+      method: 'POST',
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+      body: isFormData ? data : JSON.stringify(data),
+    })
+    return await res.json()
+  } catch (err) {
+    return { status: 'false', message: err.message }
+  }
+}
+
+/**
+ * Chat history between user and another user (e.g. admin '1')
+ */
+export async function getChatHistoryApi(userId, otherUserId = '1') {
+  try {
+    const res = await fetch(`${NODE_API}/api/chat/${userId}/${otherUserId}`)
+    const json = await res.json()
+    return json?.data || json?.messages || json || []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Concierge chat history helper
+ */
+export async function getConciergeChatHistoryApi(userId) {
+  return await getChatHistoryApi(userId, '1')
+}
+
+/**
+ * Send chat message
+ */
+export async function sendChatMessageApi({ sender_id, receiver_id = '1', message, message_type = 'text', ticket_id, temp_id }) {
+  try {
+    const res = await fetch(`${NODE_API}/api/chat/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender_id: String(sender_id),
+        receiver_id: String(receiver_id),
+        message: String(message),
+        message_type,
+        ticket_id,
+        temp_id,
+      }),
+    })
+    return await res.json()
+  } catch (err) {
+    return { status: 'false', message: err.message }
+  }
+}
+
+/**
+ * Fetch notifications
+ */
+export async function getNotificationsApi({ recipientType = 'user', recipientId, isRead, page = 1, limit = 20 } = {}) {
+  try {
+    let url = `${NODE_API}/api/notifications?recipient_type=${recipientType}&recipient_id=${recipientId}&page=${page}&limit=${limit}`
+    if (isRead !== undefined) {
+      url += `&is_read=${isRead ? 1 : 0}`
+    }
+    const res = await fetch(url)
+    return await res.json()
+  } catch (err) {
+    console.warn('Notice: error fetching notifications:', err.message)
+    return { success: false, notifications: [] }
+  }
+}
+
+/**
+ * Mark a single notification as read
+ */
+export async function markNotificationReadApi(id, { recipientType = 'user', recipientId } = {}) {
+  try {
+    const res = await fetch(`${NODE_API}/api/notifications/${id}/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_type: recipientType, recipient_id: recipientId }),
+    })
+    return await res.json()
+  } catch (err) {
+    console.warn('Notice: error marking notification read:', err.message)
+    return { success: false }
+  }
+}
+
+/**
+ * Order vendor chat history
+ */
+export async function getOrderVendorChatApi(saleOrderId) {
+  try {
+    const res = await fetch(`${NODE_API}/api/chat/order/${saleOrderId}`)
+    return await res.json()
+  } catch (err) {
+    return { success: false, error: err.message, messages: [] }
+  }
+}
+
+/**
+ * Send message in order vendor chat
+ */
+export async function sendOrderVendorMessageApi({ saleOrderId, vendorId, customerId, message, filePath }) {
+  try {
+    const res = await fetch(`${NODE_API}/api/chat/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sale_order_id: saleOrderId,
+        saleOrderId,
+        sender_id: customerId,
+        receiver_id: vendorId,
+        message,
+        file_path: filePath,
+        filePath,
+      }),
+    })
+    return await res.json()
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Upload chat attachment
+ */
+export async function uploadChatAttachmentApi(file) {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`${NODE_API}/api/chat/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+    return await res.json()
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+// ==========================================
+// BESPOKE ECOMMERCE INVOICE SYSTEM APIS
+// ==========================================
+
+/**
+ * Fetch or generate invoice(s) for a specific order
+ */
+export async function getOrderInvoicesApi(orderId, userId = null) {
+  try {
+    const uId = userId || getStoredUserId()
+    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    const res = await fetch(`${NODE_API}/api/customer/orders/${orderId}/invoice${query}`)
+    const json = await res.json()
+    return json
+  } catch (err) {
+    console.error('Error fetching order invoice:', err)
+    return { status: false, message: err.message }
+  }
+}
+
+/**
+ * Fetch single invoice details by invoice ID
+ */
+export async function getInvoiceDetailsApi(invoiceId, userId = null) {
+  try {
+    const uId = userId || getStoredUserId()
+    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    const res = await fetch(`${NODE_API}/api/customer/invoices/${invoiceId}${query}`)
+    const json = await res.json()
+    return json
+  } catch (err) {
+    console.error('Error fetching invoice details:', err)
+    return { status: false, message: err.message }
+  }
+}
+
+/**
+ * Download Invoice PDF by invoice ID
+ */
+export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFilename = null) {
+  try {
+    const uId = userId || getStoredUserId()
+    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    const res = await fetch(`${NODE_API}/api/customer/invoices/${invoiceId}/download${query}`)
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}))
+      throw new Error(errJson.message || 'Unable to download invoice PDF.')
+    }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = defaultFilename || `BESPOKE_INVOICE_${invoiceId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+    return { success: true }
+  } catch (err) {
+    console.error('Error downloading invoice PDF:', err)
+    throw err
+  }
+}
+
+/**
+ * Download Invoice PDF by Order ID
+ */
+export async function downloadOrderInvoicePdfApi(orderId, sellerId = null, userId = null, defaultFilename = null) {
+  try {
+    const uId = userId || getStoredUserId()
+    const params = new URLSearchParams()
+    if (uId) params.append('user_id', uId)
+    if (sellerId) params.append('seller_id', sellerId)
+
+    const queryStr = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${NODE_API}/api/customer/orders/${orderId}/invoice/download${queryStr}`)
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}))
+      throw new Error(errJson.message || 'Invoice is not available yet.')
+    }
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = defaultFilename || `BESPOKE_ORDER_${orderId}_INVOICE.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+    return { success: true }
+  } catch (err) {
+    console.error('Error downloading order invoice PDF:', err)
+    throw err
+  }
+}
+
+/**
+ * List customer invoice history with search and pagination
+ */
+export async function getCustomerInvoicesApi({ userId = null, page = 1, limit = 20, search = '', fromDate = '', toDate = '' } = {}) {
+  try {
+    const uId = userId || getStoredUserId()
+    const params = new URLSearchParams({
+      user_id: uId || '',
+      page: String(page),
+      limit: String(limit),
+    })
+    if (search) params.append('search', search)
+    if (fromDate) params.append('fromDate', fromDate)
+    if (toDate) params.append('toDate', toDate)
+
+    const res = await fetch(`${NODE_API}/api/customer/invoices?${params.toString()}`)
+    const json = await res.json()
+    return json
+  } catch (err) {
+    console.error('Error fetching customer invoices:', err)
+    return { status: false, message: err.message, data: { total: 0, invoices: [] } }
+  }
+}
+
+
 
 

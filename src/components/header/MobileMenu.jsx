@@ -23,6 +23,9 @@ export default function MobileMenu({
   cartCount = 0,
   onOpenTrackOrder,
   onOpenSupport,
+  onOpenAuthModal,
+  onOpenWishlist,
+  onOpenAccount,
 }) {
   const [expandedCategory, setExpandedCategory] = useState(null)
   const [expandedSections, setExpandedSections] = useState({})
@@ -102,7 +105,11 @@ export default function MobileMenu({
           <button
             onClick={() => {
               handleClose()
-              alert('Opening Account / Profile')
+              if (onOpenAccount) {
+                onOpenAccount()
+              } else if (onOpenAuthModal) {
+                onOpenAuthModal('login')
+              }
             }}
             className="flex flex-col items-center gap-1 hover:text-black transition-colors cursor-pointer"
           >
@@ -113,7 +120,9 @@ export default function MobileMenu({
           <button
             onClick={() => {
               handleClose()
-              alert(`Wishlist contains ${wishlistCount} items`)
+              if (onOpenWishlist) {
+                onOpenWishlist()
+              }
             }}
             className="flex flex-col items-center gap-1 hover:text-black transition-colors relative cursor-pointer"
           >
@@ -203,7 +212,15 @@ export default function MobileMenu({
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
 
-                    {cat.sections.map((section, sIdx) => {
+                    {((cat.sections && cat.sections.length > 0)
+                      ? cat.sections
+                      : (NAVIGATION_CATEGORIES.find(
+                          (d) =>
+                            d.id === cat.id ||
+                            (d.name || '').toLowerCase() === (cat.name || '').toLowerCase() ||
+                            String(d.type || '') === String(cat.type || '')
+                        )?.sections || [])
+                    ).map((section, sIdx) => {
                       const sectionKey = `${cat.id}-${sIdx}`
                       const isSecExpanded = expandedSections[sectionKey] ?? true // default open for ease
 

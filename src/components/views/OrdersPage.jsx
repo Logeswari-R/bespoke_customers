@@ -1,16 +1,154 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Package,
   ChevronRight,
   Clock,
   CheckCircle,
+  CheckCircle2,
   Truck,
   XCircle,
   Search,
   ArrowLeft,
   Calendar,
+  Bookmark,
+  Star,
+  Edit3,
+  Pen,
+  RotateCcw,
+  MessageSquare,
+  MessageCircle,
+  ExternalLink,
+  ShieldCheck,
+  Check,
+  FileText,
+  Sparkles,
+  SlidersHorizontal,
+  X,
+  Filter,
 } from 'lucide-react'
-import { getUserOrders, formatImageUrl } from '../../services/api'
+import {
+  getUserOrders,
+  getUserReviewDetailsApi,
+  formatImageUrl,
+  getStarColor,
+} from '../../services/api'
+import WriteReviewModal from '../common/WriteReviewModal'
+import InvoiceModal from '../common/InvoiceModal'
+
+const STATUS_OPTIONS = [
+  'On the way',
+  'Delivered',
+  'Cancelled',
+  'Returned',
+]
+
+const TIME_OPTIONS = [
+  'Last 30 days',
+  '2024',
+  '2023',
+  'Older',
+]
+
+function getOrderStatusCategories(order) {
+  const statusStr = String(
+    order.order_status || order.status || order.order_history_with_date || ''
+  ).toUpperCase()
+  const historyStr = String(order.order_history || '').toUpperCase()
+  const cancelledType = String(order.cancelled_type || '').toLowerCase()
+  const rawStatusNum = parseInt(order.order_status, 10)
+
+  const isReturned = Boolean(
+    order.is_returned === true ||
+    cancelledType === 'return' ||
+    Boolean(order.return_details) ||
+    statusStr.includes('RETURN') ||
+    historyStr.includes('RETURN') ||
+    rawStatusNum === 8
+  )
+
+  const isDelivered = Boolean(
+    !isReturned &&
+    (order.is_delivered === true ||
+      rawStatusNum === 5 ||
+      statusStr.includes('DELIVER') ||
+      historyStr.includes('DELIVER'))
+  )
+
+  const isCancelled = Boolean(
+    !isReturned &&
+    !isDelivered &&
+    (order.is_cancelled === true ||
+      order.cancelled_at ||
+      cancelledType === 'cancel' ||
+      rawStatusNum === 4 ||
+      statusStr.includes('CANCEL') ||
+      statusStr.includes('DECLINE') ||
+      historyStr.includes('CANCEL') ||
+      historyStr.includes('DECLINE') ||
+      (statusStr.includes('REFUND') && cancelledType !== 'return'))
+  )
+
+  const categories = []
+  if (isDelivered) categories.push('Delivered')
+  if (isReturned) categories.push('Returned')
+  if (isCancelled) categories.push('Cancelled')
+  if (!isCancelled && !isReturned && !isDelivered) {
+    categories.push('On the way')
+  }
+
+  return categories
+}
+
+function getOrderTimeCategories(order) {
+  const dateStr = order.created_at || order.c_date || order.date || order.order_date
+  if (!dateStr) return ['Older']
+
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ['Older']
+
+    const now = new Date()
+    const diffDays = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
+    const year = d.getFullYear()
+
+    const categories = []
+
+    if (diffDays >= 0 && diffDays <= 30) {
+      categories.push('Last 30 days')
+    }
+
+    if (year === 2024) {
+      categories.push('2024')
+    } else if (year === 2023) {
+      categories.push('2023')
+    } else if (year < 2023) {
+      categories.push('Older')
+    }
+
+    if (categories.length === 0 && year < 2024) {
+      categories.push('Older')
+    }
+
+    return categories
+  } catch {
+    return ['Older']
+  }
+}
+
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return String(dateStr)
+  }
+}
 
 export default function OrdersPage({
   currentUser,
@@ -18,36 +156,100 @@ export default function OrdersPage({
   onSelectOrder,
   onOpenAuth,
   onContinueShopping,
+  onOpenSupport,
+  onOpenVendorChat,
+  onSelectProduct,
 }) {
   const [orders, setOrders] = useState([])
+  const [userReviewsMap, setUserReviewsMap] = useState({})
   const [isLoading, setIsLoading] = useState(() => Boolean(currentUser?.id))
-  const [activeTab, setActiveTab] = useState('ALL') // 'ALL', 'ACTIVE', 'DELIVERED', 'CANCELLED'
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [selectedStatuses, setSelectedStatuses] = useState([])
+  const [selectedTimeFilters, setSelectedTimeFilters] = useState([])
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [reviewingItem, setReviewingItem] = useState(null)
+  const [invoiceOrderId, setInvoiceOrderId] = useState(null)
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
 
-  useEffect(() => {
-    let ignore = false
-    const userId = currentUser?.id
+  const loadOrdersAndReviews = useCallback(async () => {
+    const userId = currentUser?.id || currentUser?.user_id
     if (!userId) return
 
-    async function fetchOrders() {
-      setIsLoading(true)
-      try {
-        const res = await getUserOrders(userId, 1)
-        if (!ignore && res.status && Array.isArray(res.orders)) {
-          setOrders(res.orders)
-        }
-      } catch (err) {
-        console.error('Failed to load orders:', err)
-      } finally {
-        if (!ignore) setIsLoading(false)
-      }
-    }
+    setIsLoading(true)
+    setPage(1)
+    try {
+      const [ordersRes, reviewsRes] = await Promise.allSettled([
+        getUserOrders(userId, 1),
+        getUserReviewDetailsApi({ userId }),
+      ])
 
-    fetchOrders()
-    return () => {
-      ignore = true
+      if (
+        ordersRes.status === 'fulfilled' &&
+        ordersRes.value &&
+        (ordersRes.value.status === true || ordersRes.value.status === 'true') &&
+        Array.isArray(ordersRes.value.orders)
+      ) {
+        setOrders(ordersRes.value.orders)
+        if (ordersRes.value.pagination) {
+          setPagination(ordersRes.value.pagination)
+        }
+      }
+
+      if (
+        reviewsRes.status === 'fulfilled' &&
+        reviewsRes.value &&
+        (reviewsRes.value.status === true || reviewsRes.value.status === 'true') &&
+        Array.isArray(reviewsRes.value.data)
+      ) {
+        const rMap = {}
+        reviewsRes.value.data.forEach((rev) => {
+          if (rev.sale_order_id) {
+            rMap[rev.sale_order_id] = rev
+          }
+        })
+        setUserReviewsMap(rMap)
+      }
+    } catch (err) {
+      console.error('Failed to load orders or user reviews:', err)
+    } finally {
+      setIsLoading(false)
     }
-  }, [currentUser?.id])
+  }, [currentUser?.id, currentUser?.user_id])
+
+  const handleLoadMore = async () => {
+    const userId = currentUser?.id || currentUser?.user_id
+    if (!userId || isLoadingMore) return
+    const maxPage = pagination?.lastPage || pagination?.totalPages || 1
+    if (page >= maxPage) return
+
+    setIsLoadingMore(true)
+    try {
+      const nextPage = page + 1
+      const res = await getUserOrders(userId, nextPage)
+      if (res && Array.isArray(res.orders) && res.orders.length > 0) {
+        setOrders((prev) => {
+          const existingIds = new Set(prev.map((o) => o.id || o.sale_order_id))
+          const fresh = res.orders.filter((o) => !existingIds.has(o.id || o.sale_order_id))
+          return [...prev, ...fresh]
+        })
+        setPage(nextPage)
+        if (res.pagination) {
+          setPagination(res.pagination)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed loading more orders:', err)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
+  useEffect(() => {
+    loadOrdersAndReviews()
+  }, [loadOrdersAndReviews])
 
   if (!currentUser) {
     return (
@@ -58,7 +260,7 @@ export default function OrdersPage({
           </div>
           <h2 className="text-xl font-bold text-neutral-900">Sign in to View Orders</h2>
           <p className="text-xs text-neutral-500 mt-2 mb-6">
-            Log in to track your bespoke garments, view past purchase invoices, and request doorstep alterations.
+            Log in to track your bespoke garments, view past purchase invoices, and write reviews for delivered items.
           </p>
           <button
             type="button"
@@ -72,236 +274,1126 @@ export default function OrdersPage({
     )
   }
 
-  // Filter orders by tab & search query
-  const filteredOrders = orders.filter((order) => {
-    const status = String(order.order_status || order.status || '').toUpperCase()
-    if (activeTab === 'ACTIVE' && (status.includes('DELIVER') || status.includes('CANCEL'))) {
-      return false
-    }
-    if (activeTab === 'DELIVERED' && !status.includes('DELIVER')) {
-      return false
-    }
-    if (activeTab === 'CANCELLED' && !status.includes('CANCEL')) {
-      return false
-    }
+  const toggleStatusFilter = (status) => {
+    setSelectedStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    )
+  }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      const idMatch = String(order.id || order.sale_order_id || '').toLowerCase().includes(q)
-      const nameMatch = (order.products || order.items || []).some((p) =>
-        String(p.product_name || p.title || '').toLowerCase().includes(q)
-      )
-      return idMatch || nameMatch
+  const toggleTimeFilter = (time) => {
+    setSelectedTimeFilters((prev) =>
+      prev.includes(time) ? prev.filter((t) => t !== time) : [...prev, time]
+    )
+  }
+
+  const clearAllFilters = () => {
+    setSelectedStatuses([])
+    setSelectedTimeFilters([])
+    setSearchQuery('')
+  }
+
+  const activeFilterCount = selectedStatuses.length + selectedTimeFilters.length
+
+  const statusCounts = useMemo(() => {
+    const counts = {
+      'On the way': 0,
+      'Delivered': 0,
+      'Cancelled': 0,
+      'Returned': 0,
     }
+    orders.forEach((o) => {
+      const cats = getOrderStatusCategories(o)
+      cats.forEach((c) => {
+        if (counts[c] !== undefined) counts[c]++
+      })
+    })
+    return counts
+  }, [orders])
 
-    return true
-  })
+  const timeCounts = useMemo(() => {
+    const counts = {
+      'Last 30 days': 0,
+      '2024': 0,
+      '2023': 0,
+      'Older': 0,
+    }
+    orders.forEach((o) => {
+      const cats = getOrderTimeCategories(o)
+      cats.forEach((c) => {
+        if (counts[c] !== undefined) counts[c]++
+      })
+    })
+    return counts
+  }, [orders])
 
-  const getStatusBadge = (statusStr) => {
-    const s = String(statusStr || 'PLACED').toUpperCase()
-    if (s.includes('DELIVER')) {
+  // Filter orders by checkboxes (Status & Time) and search query
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      // 1. Search Query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const idMatch = String(
+          order.id || order.sale_order_id || order.order_id || order.sale_id || ''
+        ).toLowerCase().includes(q)
+        const nameMatch = (order.products || order.items || [order]).some((p) =>
+          String(p.product_name || p.title || p.product_material_name || '').toLowerCase().includes(q)
+        )
+        if (!idMatch && !nameMatch) return false
+      }
+
+      // 2. Order Status filter
+      if (selectedStatuses.length > 0) {
+        const cats = getOrderStatusCategories(order)
+        const matchesAnyStatus = selectedStatuses.some((st) => cats.includes(st))
+        if (!matchesAnyStatus) return false
+      }
+
+      // 3. Order Time filter
+      if (selectedTimeFilters.length > 0) {
+        const times = getOrderTimeCategories(order)
+        const matchesAnyTime = selectedTimeFilters.some((tf) => times.includes(tf))
+        if (!matchesAnyTime) return false
+      }
+
+      return true
+    })
+  }, [orders, searchQuery, selectedStatuses, selectedTimeFilters])
+
+  const getStatusBadge = (statusStr, order = {}) => {
+    const s = String(statusStr || order.order_status || order.status || 'PLACED').toUpperCase()
+    const historyStr = String(order.order_history || '').toUpperCase()
+    const cancelledType = String(order.cancelled_type || '').toLowerCase()
+    const rawStatusNum = parseInt(order.order_status, 10)
+
+    const isReturned = Boolean(
+      order.is_returned === true ||
+      cancelledType === 'return' ||
+      Boolean(order.return_details) ||
+      s.includes('RETURN') ||
+      historyStr.includes('RETURN') ||
+      rawStatusNum === 8
+    )
+
+    const isDelivered = Boolean(
+      !isReturned &&
+      (order.is_delivered === true ||
+        rawStatusNum === 5 ||
+        s.includes('DELIVER') ||
+        historyStr.includes('DELIVER'))
+    )
+
+    const isCancelled = Boolean(
+      !isReturned &&
+      !isDelivered &&
+      (order.is_cancelled === true ||
+        order.cancelled_at ||
+        cancelledType === 'cancel' ||
+        rawStatusNum === 4 ||
+        s.includes('CANCEL') ||
+        s.includes('DECLINE') ||
+        historyStr.includes('CANCEL') ||
+        historyStr.includes('DECLINE') ||
+        (s.includes('REFUND') && cancelledType !== 'return'))
+    )
+
+    if (isReturned) {
       return (
-        <span className="badge-success text-[10px] py-0.5 px-2.5 flex items-center gap-1">
-          <CheckCircle className="w-3 h-3" />
-          Delivered
+        <span className="bg-amber-50 text-amber-800 border border-amber-200/90 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <RotateCcw className="w-3 h-3 text-amber-600" />
+          <span>Return Processed</span>
         </span>
       )
     }
-    if (s.includes('CANCEL')) {
+
+    if (isCancelled) {
+      const isRefunded = Boolean(
+        s.includes('REFUND') ||
+        historyStr.includes('REFUND') ||
+        (order.refund && ['completed', 'processed', 'success'].includes(String(order.refund.refund_status || '').toLowerCase()))
+      )
       return (
-        <span className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold py-0.5 px-2.5 rounded-full flex items-center gap-1">
-          <XCircle className="w-3 h-3" />
-          Cancelled
+        <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <XCircle className="w-3 h-3 text-rose-600" />
+          <span>{isRefunded ? 'Refund Processed' : 'Cancelled'}</span>
         </span>
       )
     }
-    if (s.includes('DISPATCH') || s.includes('SHIP')) {
+
+    if (isDelivered) {
       return (
-        <span className="badge-accent-cyan text-[10px] py-0.5 px-2.5 flex items-center gap-1">
-          <Truck className="w-3 h-3" />
-          Dispatched
+        <span className="bg-[#E8F8EE] text-[#059669] border border-[#C2F0D2] text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <CheckCircle2 className="w-3 h-3 text-[#059669]" />
+          <span>Delivered</span>
         </span>
       )
     }
+
+    if (s.includes('DISPATCH') || (s.includes('SHIP') && !s.includes('READY')) || rawStatusNum === 3 || rawStatusNum === 6 || rawStatusNum === 7) {
+      return (
+        <span className="bg-cyan-50 text-cyan-800 border border-cyan-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <Truck className="w-3 h-3 text-cyan-600" />
+          <span>Dispatched</span>
+        </span>
+      )
+    }
+
+    if (s.includes('READY') || rawStatusNum === 2) {
+      return (
+        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <Package className="w-3 h-3 text-blue-600" />
+          <span>Ready to Ship</span>
+        </span>
+      )
+    }
+
+    if (s.includes('CONFIRM') || s.includes('APPROV') || rawStatusNum === 1) {
+      return (
+        <span className="bg-pink-50 text-[#d6007a] border border-pink-200/80 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+          <Clock className="w-3 h-3 text-[#d6007a]" />
+          <span>Order Confirmed</span>
+        </span>
+      )
+    }
+
     return (
-      <span className="badge-theme-subtle text-[10px] py-0.5 px-2.5 flex items-center gap-1">
-        <Clock className="w-3 h-3" />
-        In Crafting
+      <span className="bg-pink-50 text-[#d6007a] border border-pink-200/80 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <Clock className="w-3 h-3 text-[#d6007a]" />
+        <span>In Crafting</span>
       </span>
     )
   }
 
+  const openReviewModal = (prod, order, isEdit = false, existingRev = null) => {
+    const saleOrderId = prod.sale_order_id || prod.id || order.sale_order_id || order.id
+    setReviewingItem({
+      saleOrderId,
+      productId: prod.product_id || order.product_id,
+      productName: prod.product_name || prod.title || 'Bespoke Garment',
+      productImage:
+        prod.product_image ||
+        prod.image ||
+        prod.image_path ||
+        prod.main_image,
+      isEditMode: isEdit,
+      initialRating: existingRev?.ratings || existingRev?.rating || 5,
+      initialReview: existingRev?.review || existingRev?.comments || '',
+      initialImages: existingRev?.images || [],
+    })
+  }
+
   return (
-    <div className="min-h-screen bg-[var(--theme-bg)] py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Top Header */}
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-neutral-200">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-2 text-xs font-bold text-neutral-600 hover:text-black cursor-pointer transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </button>
-          <h1 className="text-base font-extrabold text-neutral-900 tracking-tight">
-            My Orders & Tracking
-          </h1>
-          <div className="w-12" />
-        </div>
-
-        {/* Filter Tabs & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
-          <div className="flex p-1 bg-white border border-neutral-200 rounded-2xl w-full sm:w-auto">
-            {['ALL', 'ACTIVE', 'DELIVERED', 'CANCELLED'].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 sm:flex-initial px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === tab
-                    ? 'bg-theme-gradient text-white shadow-xs'
-                    : 'text-neutral-500 hover:text-black'
-                }`}
-              >
-                {tab.charAt(0) + tab.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Order ID or item..."
-              className="w-full pl-9 pr-3 py-2 bg-white text-xs border border-neutral-200 rounded-2xl outline-none focus:border-[var(--theme-primary)]"
-            />
-          </div>
-        </div>
-
-        {/* Orders Content */}
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="bg-white rounded-3xl p-6 border border-neutral-200 animate-pulse space-y-4"
-              >
-                <div className="h-4 bg-neutral-200 rounded w-1/4" />
-                <div className="h-16 bg-neutral-100 rounded-2xl" />
-                <div className="h-4 bg-neutral-200 rounded w-1/3" />
-              </div>
-            ))}
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-neutral-200 max-w-md mx-auto my-12">
-            <div className="w-16 h-16 rounded-full bg-pink-50 flex items-center justify-center text-[var(--theme-primary)] mx-auto mb-4">
-              <Package className="w-8 h-8" />
-            </div>
-            <h3 className="text-base font-bold text-neutral-900">No orders found</h3>
-            <p className="text-xs text-neutral-500 mt-1 mb-6">
-              {searchQuery
-                ? 'No orders matched your search criteria.'
-                : 'You have not placed any orders under this filter yet.'}
-            </p>
+    <div className="min-h-screen bg-[#FAF9F8] py-6 sm:py-8 px-4 sm:px-6 lg:px-8 pb-20">
+      <div className="max-w-7xl mx-auto">
+        {/* Top Header & Breadcrumb */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-200">
+          <div>
             <button
               type="button"
-              onClick={onContinueShopping}
-              className="px-6 py-2.5 btn-theme text-xs font-bold uppercase tracking-wider cursor-pointer"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-600 hover:text-black cursor-pointer transition-colors mb-1.5"
             >
-              Explore Collections
+              <ArrowLeft className="w-4 h-4 text-[#d6007a]" />
+              <span>Back to Shopping</span>
             </button>
+            <h1 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight">
+              My Orders & Atelier History
+            </h1>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredOrders.map((order) => {
-              const orderId = order.id || order.sale_order_id || order.order_id
-              const dateStr = order.created_at || order.c_date || order.date
-              const products = order.products || order.items || order.order_items || []
-              const totalAmount = order.total_amount || order.amount || order.grand_total || 0
+
+          <div className="text-xs text-neutral-500 font-medium self-start sm:self-auto">
+            <span>{orders.length} total orders recorded</span>
+          </div>
+        </div>
+
+        {/* 2-Column Responsive Layout: Sidebar Filters + Main Order Stream */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+          {/* ========================================================= */}
+          {/* 1. LEFT SIDEBAR: FILTERS (Desktop) */}
+          {/* ========================================================= */}
+          <aside className="hidden lg:block lg:col-span-3 sticky top-24">
+            <div className="bg-white rounded-3xl border border-pink-100/90 shadow-xs p-5 space-y-5">
+              {/* Header: Filters + Clear all */}
+              <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-[#D6007A]" />
+                  <h2 className="text-base font-bold text-neutral-900 tracking-tight">Filters</h2>
+                </div>
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="text-xs font-bold text-[#D6007A] hover:text-[#B80068] hover:underline cursor-pointer"
+                  >
+                    CLEAR ALL
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Group 1: Order Status */}
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3 flex items-center justify-between">
+                  <span>Order Status</span>
+                  {selectedStatuses.length > 0 && (
+                    <span className="text-[10px] font-bold text-[#D6007A] bg-pink-50 px-1.5 py-0.5 rounded-full">
+                      {selectedStatuses.length}
+                    </span>
+                  )}
+                </h3>
+                <div className="space-y-2.5">
+                  {STATUS_OPTIONS.map((st) => {
+                    const isChecked = selectedStatuses.includes(st)
+                    const count = statusCounts[st] || 0
+                    return (
+                      <label
+                        key={st}
+                        className="flex items-center justify-between text-xs font-medium text-neutral-700 hover:text-neutral-950 cursor-pointer select-none group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleStatusFilter(st)}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                              isChecked
+                                ? 'bg-[#D6007A] border-[#D6007A] text-white shadow-2xs'
+                                : 'border-neutral-300 bg-white group-hover:border-[#D6007A]'
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span className={isChecked ? 'font-semibold text-neutral-900' : 'text-neutral-700'}>
+                            {st}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-neutral-400 font-normal">
+                          ({count})
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-neutral-100" />
+
+              {/* Filter Group 2: Order Time */}
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3 flex items-center justify-between">
+                  <span>Order Time</span>
+                  {selectedTimeFilters.length > 0 && (
+                    <span className="text-[10px] font-bold text-[#D6007A] bg-pink-50 px-1.5 py-0.5 rounded-full">
+                      {selectedTimeFilters.length}
+                    </span>
+                  )}
+                </h3>
+                <div className="space-y-2.5">
+                  {TIME_OPTIONS.map((tf) => {
+                    const isChecked = selectedTimeFilters.includes(tf)
+                    const count = timeCounts[tf] || 0
+                    return (
+                      <label
+                        key={tf}
+                        className="flex items-center justify-between text-xs font-medium text-neutral-700 hover:text-neutral-950 cursor-pointer select-none group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleTimeFilter(tf)}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                              isChecked
+                                ? 'bg-[#D6007A] border-[#D6007A] text-white shadow-2xs'
+                                : 'border-neutral-300 bg-white group-hover:border-[#D6007A]'
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span className={isChecked ? 'font-semibold text-neutral-900' : 'text-neutral-700'}>
+                            {tf}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-neutral-400 font-normal">
+                          ({count})
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* ========================================================= */}
+          {/* 2. RIGHT MAIN CONTENT (col-span-9) */}
+          {/* ========================================================= */}
+          <main className="lg:col-span-9 min-w-0 space-y-4">
+            {/* Top Search Bar & Mobile Filter Trigger */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by Order ID or Product Name..."
+                  className="w-full pl-10 pr-9 py-2.5 bg-white text-xs border border-neutral-200 rounded-2xl outline-none focus:border-[#D6007A] transition-colors shadow-2xs"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Mobile Filter Button (< lg) */}
+              <button
+                type="button"
+                onClick={() => setMobileFilterOpen(true)}
+                className="lg:hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-neutral-200 hover:border-pink-300 rounded-2xl text-xs font-bold text-neutral-800 shadow-2xs cursor-pointer active:scale-95 transition-all"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-[#D6007A]" />
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-[#D6007A] text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Active Filter Pills Bar */}
+            {(activeFilterCount > 0 || searchQuery) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+                <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wide">
+                  Active Filters:
+                </span>
+                {selectedStatuses.map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => toggleStatusFilter(st)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 border border-pink-200 text-xs font-semibold text-[#D6007A] hover:bg-pink-100 transition-colors cursor-pointer"
+                  >
+                    <span>{st}</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                ))}
+                {selectedTimeFilters.map((tf) => (
+                  <button
+                    key={tf}
+                    type="button"
+                    onClick={() => toggleTimeFilter(tf)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 border border-pink-200 text-xs font-semibold text-[#D6007A] hover:bg-pink-100 transition-colors cursor-pointer"
+                  >
+                    <span>{tf}</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                ))}
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-200 transition-colors cursor-pointer"
+                  >
+                    <span>"{searchQuery}"</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-xs font-bold text-[#D6007A] hover:underline cursor-pointer ml-1"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+
+            {/* Orders Content Stream */}
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-3xl p-6 border border-neutral-200 animate-pulse space-y-4 shadow-xs"
+                  >
+                    <div className="h-4 bg-neutral-200 rounded w-1/4" />
+                    <div className="h-20 bg-neutral-100 rounded-2xl" />
+                    <div className="h-4 bg-neutral-200 rounded w-1/3" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-pink-100 max-w-md mx-auto my-12 shadow-xs">
+                <div className="w-16 h-16 rounded-full bg-pink-50 flex items-center justify-center text-[#D6007A] mx-auto mb-4">
+                  <Package className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900">No orders found</h3>
+                <p className="text-xs text-neutral-500 mt-1 mb-6">
+                  {activeFilterCount > 0 || searchQuery
+                    ? 'No orders match your selected filters or search criteria.'
+                    : 'You have not placed any orders yet.'}
+                </p>
+                {activeFilterCount > 0 || searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="px-6 py-2.5 rounded-full bg-[#D6007A] hover:bg-[#B80068] text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all active:scale-95"
+                  >
+                    Clear All Filters
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onContinueShopping}
+                    className="px-6 py-2.5 btn-theme text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md"
+                  >
+                    Explore Collections
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-6">
+                {filteredOrders.map((order) => {
+                  const orderId = order.id || order.sale_order_id || order.order_id
+                  const dateStr = order.created_at || order.c_date || order.date
+                  const orderCode = order.order_id || `ORD${orderId}`
+              const saleId = order.sale_id || `SID${orderId}`
+              const orderStatus = String(
+                order.order_status || order.status || order.order_history_with_date || ''
+              ).toUpperCase()
+
+              const isOrderCancelled =
+                order.is_cancelled === true ||
+                orderStatus.includes('CANCEL') ||
+                orderStatus.includes('DECLINE') ||
+                String(order.order_status) === '4' ||
+                String(order.order_history_with_date || '').toUpperCase().includes('CANCEL') ||
+                String(order.order_history_with_date || '').toUpperCase().includes('DECLINE')
+
+              const isOrderReturned =
+                !isOrderCancelled &&
+                (order.is_returned === true ||
+                  order.cancelled_type === 'return' ||
+                  Boolean(order.return_details) ||
+                  orderStatus.includes('RETURN') ||
+                  String(order.order_history_with_date || '').toUpperCase().includes('RETURN') ||
+                  String(order.order_status) === '8')
+
+              const isOrderDelivered =
+                !isOrderCancelled &&
+                (orderStatus.includes('DELIVER') ||
+                  order.is_delivered === true ||
+                  String(order.order_status) === '5')
+
+              const rawProducts = order.products || order.items || order.order_items || []
+              const products =
+                rawProducts.length > 0
+                  ? rawProducts
+                  : order.product_name || order.product_id
+                  ? [order]
+                  : []
+
+              const sumOfProducts = products.reduce((sum, p) => {
+                const val =
+                  parseFloat(p.discount_price ?? p.price ?? p.item_price ?? p.amount ?? p.single_product_price ?? 0) || 0
+                const qty = parseInt(p.quantity || p.qty || 1, 10) || 1
+                return sum + (val > 0 ? val * qty : 0)
+              }, 0)
+
+              const totalAmount =
+                (parseFloat(order.payable_price) > 0 ? parseFloat(order.payable_price) : null) ||
+                (parseFloat(order.total_amount) > 0 ? parseFloat(order.total_amount) : null) ||
+                (parseFloat(order.amount) > 0 ? parseFloat(order.amount) : null) ||
+                (parseFloat(order.grand_total) > 0 ? parseFloat(order.grand_total) : null) ||
+                (parseFloat(order.price) > 0 ? parseFloat(order.price) : null) ||
+                (sumOfProducts > 0 ? sumOfProducts : null) ||
+                (parseFloat(products[0]?.discount_price) > 0 ? parseFloat(products[0]?.discount_price) : null) ||
+                (parseFloat(products[0]?.price) > 0 ? parseFloat(products[0]?.price) : null) ||
+                (parseFloat(products[0]?.item_price) > 0 ? parseFloat(products[0]?.item_price) : null) ||
+                0
 
               return (
                 <div
                   key={orderId}
-                  onClick={() => onSelectOrder && onSelectOrder(orderId)}
-                  className="bg-white rounded-3xl p-6 border border-neutral-200/80 shadow-xs hover:border-[var(--theme-primary)]/40 hover:shadow-md transition-all cursor-pointer group"
+                  className="bg-white rounded-2xl border border-pink-100/70 shadow-2xs hover:border-pink-200/80 hover:shadow-xs transition-all overflow-hidden"
                 >
-                  {/* Top Bar: Order ID, Date, Status */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-neutral-100">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-extrabold text-neutral-900 group-hover:text-[var(--theme-primary)] transition-colors">
-                        Order #{orderId}
-                      </span>
-                      {dateStr && (
-                        <span className="text-[11px] text-neutral-400 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(dateStr).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
-                      )}
-                    </div>
-                    <div>{getStatusBadge(order.order_status || order.status)}</div>
-                  </div>
-
-                  {/* Items list preview */}
-                  <div className="py-4 space-y-3">
-                    {products.length === 0 ? (
-                      <p className="text-xs text-neutral-500">Bespoke Atelier Garment</p>
-                    ) : (
-                      products.slice(0, 2).map((prod, idx) => (
-                        <div key={idx} className="flex items-center gap-3">
-                          <img
-                            src={
-                              formatImageUrl(prod.image || prod.image_path || prod.main_image) ||
-                              'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=200&q=80'
-                            }
-                            alt={prod.product_name || prod.title}
-                            className="w-12 h-14 object-cover rounded-xl border border-neutral-100 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-xs font-bold text-neutral-900 truncate">
-                              {prod.product_name || prod.title || 'Bespoke Crafted Piece'}
-                            </h4>
-                            <p className="text-[11px] text-neutral-500 mt-0.5">
-                              {prod.vendor_name || 'Bespoke Atelier'} {prod.size ? `• Size: ${prod.size}` : ''}
-                            </p>
-                          </div>
-                          <span className="text-xs font-bold text-neutral-900">
-                            ₹{prod.discount_price || prod.price || 499}
+                  {/* ========================================================= */}
+                  {/* 1. ORDER HEADER BAR (Compact luxury proportions) */}
+                  {/* ========================================================= */}
+                  <div className="bg-[#FFF8FA] px-3.5 sm:px-4.5 py-2.5 sm:py-3 border-b border-pink-100/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    {/* Left: 3 Metadata items with magenta outline icons */}
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                      {/* Order Placed */}
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-[#D6007A] shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                            Order Placed
+                          </span>
+                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                            {formatDisplayDate(dateStr) || 'Recent'}
                           </span>
                         </div>
-                      ))
-                    )}
-                    {products.length > 2 && (
-                      <p className="text-[11px] text-[var(--theme-primary)] font-semibold">
-                        +{products.length - 2} more item(s) in this order
-                      </p>
-                    )}
+                      </div>
+
+                      {/* Total Amount */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-[#D6007A] shrink-0 leading-none">₹</span>
+                        <div>
+                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                            Total Amount
+                          </span>
+                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                            ₹{totalAmount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Order Reference */}
+                      <div className="flex items-center gap-2">
+                        <Bookmark className="w-4 h-4 text-[#D6007A] shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                            Order Reference
+                          </span>
+                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                            {orderCode} {saleId ? `(${saleId})` : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right side: Status Badge + Solid Magenta Invoice Button + White Order Details Button */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getStatusBadge(order.order_status || order.status || order.order_history_with_date, order)}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInvoiceOrderId(order.order_id || order.id || orderId)
+                          setIsInvoiceModalOpen(true)
+                        }}
+                        className="px-3 py-1.5 rounded-full bg-[#D6007A] hover:bg-[#B80068] text-white text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="View or download official invoice"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-white" />
+                        <span>Invoice</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onSelectOrder && onSelectOrder(order.sale_order_id || order.id || order.order_id || orderId)}
+                        className="px-3 py-1.5 rounded-full bg-white hover:bg-neutral-50 border border-neutral-200 hover:border-neutral-300 text-neutral-800 text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="View complete order details, timeline, and delivery information"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-neutral-600" />
+                        <span>Order Details</span>
+                        <ChevronRight className="w-3 h-3 text-neutral-500" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Bottom Bar: Amount & Action */}
-                  <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-neutral-500">Total: </span>
-                      <span className="font-extrabold text-neutral-900">₹{totalAmount}</span>
-                    </div>
+                  {/* ========================================================= */}
+                  {/* 2. ORDER ITEMS LIST & REVIEWS */}
+                  {/* ========================================================= */}
+                  <div className="p-3.5 sm:p-4 divide-y divide-neutral-100">
+                    {products.map((prod, idx) => {
+                      const saleOrderId =
+                        prod.sale_order_id || prod.id || order.sale_order_id || order.id
+                      const itemStatus = String(
+                        prod.order_status || prod.status || prod.order_history_with_date || orderStatus
+                      ).toUpperCase()
 
-                    <div className="flex items-center gap-1 text-[var(--theme-primary)] font-bold group-hover:translate-x-1 transition-transform">
-                      <span>View Live Tracking & Details</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </div>
+                      const isItemCancelled =
+                        isOrderCancelled ||
+                        prod.is_cancelled === true ||
+                        itemStatus.includes('CANCEL') ||
+                        itemStatus.includes('DECLINE')
+
+                      const isItemReturned =
+                        !isItemCancelled &&
+                        (isOrderReturned ||
+                          prod.is_returned === true ||
+                          itemStatus.includes('RETURN') ||
+                          Boolean(prod.return_details))
+
+                      const isItemDelivered =
+                        !isItemCancelled &&
+                        (isOrderDelivered ||
+                          itemStatus.includes('DELIVER') ||
+                          prod.is_delivered === true)
+
+                      // Reviews allowed ONLY for Successful (Delivered) or Returned orders — NEVER for Cancelled orders
+                      const isEligibleForReview =
+                        !isItemCancelled && (isItemDelivered || isItemReturned)
+
+                      const existingReview =
+                        (saleOrderId ? userReviewsMap[saleOrderId] : null) ||
+                        prod.review ||
+                        order.review ||
+                        null
+
+                      const hasReviewed = Boolean(existingReview && (existingReview.ratings || existingReview.review))
+
+                      const isCustomizable = Boolean(
+                        String(prod.is_customisable) === '1' ||
+                        String(prod.is_customizable) === '1' ||
+                        prod.is_customisable === 1 ||
+                        prod.is_customizable === true ||
+                        String(prod.product_type).toLowerCase().includes('custom') ||
+                        String(order.is_customisable) === '1' ||
+                        String(order.is_customizable) === '1' ||
+                        (prod.measurements && Object.keys(prod.measurements).length > 0) ||
+                        (prod.measurment_details &&
+                          (Array.isArray(prod.measurment_details)
+                            ? prod.measurment_details.length > 0
+                            : Object.keys(prod.measurment_details).length > 0))
+                      )
+
+                      const itemPrice =
+                        prod.discount_price ??
+                        prod.price ??
+                        prod.item_price ??
+                        prod.amount ??
+                        totalAmount ??
+                        0
+
+                      return (
+                        <div key={idx} className="py-3 first:pt-0 last:pb-0 space-y-3">
+                          {/* Item Card Flex Row (Product Info on Left, Chat with Admin on Right) */}
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            {/* Product Image & Details */}
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                              <img
+                                src={
+                                  formatImageUrl(
+                                    prod.product_image ||
+                                      prod.image ||
+                                      prod.image_path ||
+                                      prod.main_image
+                                  ) ||
+                                  'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=300&q=80'
+                                }
+                                alt={prod.product_name || prod.title}
+                                className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-xl border border-neutral-200/80 shrink-0 shadow-2xs cursor-pointer hover:opacity-90 transition-opacity bg-neutral-100"
+                                onClick={() =>
+                                  onSelectProduct &&
+                                  onSelectProduct(prod.product_id || order.product_id || prod.id)
+                                }
+                              />
+
+                              <div className="flex-1 min-w-0">
+                                {/* Badge */}
+                                <div className="mb-0.5">
+                                  <span
+                                    className={`text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block ${
+                                      isCustomizable
+                                        ? 'bg-pink-50 text-[#D6007A] border border-pink-200/80'
+                                        : 'bg-[#ECEEF5] text-neutral-600'
+                                    }`}
+                                  >
+                                    {isCustomizable ? 'Bespoke Tailored' : 'READY MADE'}
+                                  </span>
+                                </div>
+
+                                {/* Title */}
+                                <h3
+                                  onClick={() =>
+                                    onSelectProduct &&
+                                    onSelectProduct(prod.product_id || order.product_id || prod.id)
+                                  }
+                                  className="text-xs sm:text-sm font-bold text-neutral-900 hover:text-[#D6007A] cursor-pointer transition-colors leading-snug line-clamp-1"
+                                >
+                                  {prod.product_name || prod.title || 'Tshirt'}
+                                </h3>
+
+                                {/* Variant / Attributes */}
+                                <p className="text-[10.5px] sm:text-[11px] text-neutral-500 font-normal mt-0.5">
+                                  {prod.product_material_name ? `${prod.product_material_name} • ` : ''}
+                                  Size: <span className="font-semibold text-neutral-700">{prod.size || 'Standard'}</span>
+                                  {prod.quantity ? ` • Qty: ${prod.quantity}` : ' • Qty: 1'}
+                                </p>
+
+                                {/* Price */}
+                                <div className="mt-0.5 text-sm sm:text-base font-extrabold text-[#D6007A]">
+                                  ₹{itemPrice}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Action: Clean Chat with Admin pill button */}
+                            <div className="shrink-0 w-full sm:w-auto flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onOpenVendorChat) {
+                                    onOpenVendorChat({
+                                      saleOrderId,
+                                      sale_order_id: saleOrderId,
+                                      orderId: order.id || orderId,
+                                      order_id: order.order_id,
+                                      orderCode,
+                                      product_name: prod.product_name || prod.title,
+                                      product_image: prod.product_image || prod.image,
+                                      size: prod.size,
+                                      quantity: prod.quantity,
+                                      status: order.order_status || order.status,
+                                      order_status: order.order_status || order.status,
+                                      vendor_id: order.vendor_id || order.vendor?.id,
+                                      vendor: order.vendor,
+                                      vendor_shop_name: order.vendor?.shop_name || order.vendor?.name,
+                                    })
+                                  } else if (onOpenSupport) {
+                                    onOpenSupport()
+                                  } else if (onSelectOrder) {
+                                    onSelectOrder(orderId)
+                                  }
+                                }}
+                                className="w-full sm:w-auto px-3.5 py-1.5 rounded-full border border-neutral-200 hover:border-[#D6007A] hover:bg-pink-50/30 text-neutral-700 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-neutral-700" />
+                                <span>Chat with Admin</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* ========================================================= */}
+                          {/* 3. REVIEW SECTION (Exact match to uploaded design) */}
+                          {/* ========================================================= */}
+                          {!isItemCancelled && hasReviewed && (() => {
+                            const reviewRating = Number(existingReview.ratings || existingReview.rating || 5)
+                            const starInfo = getStarColor(reviewRating)
+                            const reviewImages = Array.isArray(existingReview.images) ? existingReview.images : []
+                            const extraImagesCount = reviewImages.length > 1 ? reviewImages.length - 1 : 0
+
+                            return (
+                              <div className="pt-2.5 border-t border-neutral-100">
+                                {/* Stars, Score, Date & Edit Review Button Row */}
+                                <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                                  <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+                                    {/* Dynamic Colored Stars (Green 4-5, Orange 3, Red 1-2 based on review rating) */}
+                                    <div className="flex items-center gap-0.5">
+                                      {[1, 2, 3, 4, 5].map((star) => (
+                                        <Star
+                                          key={star}
+                                          className={`w-3.5 h-3.5 transition-colors ${
+                                            star <= reviewRating
+                                              ? starInfo.starClass
+                                              : 'text-neutral-300 fill-transparent'
+                                          }`}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className={`text-[11px] font-bold ${starInfo.textClass} ml-0.5`}>
+                                      {reviewRating}.0 out of 5
+                                    </span>
+                                    <span className="text-neutral-300 mx-1">|</span>
+                                    {existingReview.created_at && (
+                                      <span className="text-[10.5px] text-neutral-400 font-medium">
+                                        Reviewed on {formatDisplayDate(existingReview.created_at)}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => openReviewModal(prod, order, true, existingReview)}
+                                    className="px-2.5 py-1 rounded-full bg-[#FFF0F6] hover:bg-[#FFE0ED] text-neutral-800 border border-pink-200/60 text-[10.5px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                    title="Edit your review"
+                                  >
+                                    <Pen className="w-3 h-3 text-[#D6007A]" />
+                                    <span>Edit Review</span>
+                                  </button>
+                                </div>
+
+                                {/* Review Comment Box */}
+                                {existingReview.review && (
+                                  <div className="mt-2 px-3 py-1.5 rounded-lg bg-[#FFF8FA] border border-pink-100/70 text-xs text-neutral-700 font-normal italic">
+                                    "{existingReview.review}"
+                                  </div>
+                                )}
+
+                                {/* Review Photos Row */}
+                                {reviewImages.length > 0 && (
+                                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    {reviewImages.slice(0, 2).map((imgObj, i) => {
+                                      const imgUrl = formatImageUrl(
+                                        imgObj.image_path || imgObj.url || imgObj
+                                      )
+                                      return (
+                                        <a
+                                          key={i}
+                                          href={imgUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="w-10 h-10 rounded-lg overflow-hidden border border-pink-200/70 shadow-2xs hover:scale-105 transition-transform"
+                                          title="View photo"
+                                        >
+                                          <img
+                                            src={imgUrl}
+                                            alt="Review attachment"
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </a>
+                                      )
+                                    })}
+
+                                    {extraImagesCount > 0 && (
+                                      <span className="w-7 h-7 rounded-lg bg-[#FFF0F6] text-[#D6007A] font-bold text-[10.5px] flex items-center justify-center border border-pink-200/60 shadow-2xs">
+                                        +{extraImagesCount}
+                                      </span>
+                                    )}
+
+                                    <span className="text-[11px] text-neutral-500 font-medium ml-1">
+                                      {reviewImages.length} Photo{reviewImages.length > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
+
+                          {/* Write Review Prompt if eligible and not yet reviewed */}
+                          {!isItemCancelled && !hasReviewed && isEligibleForReview && (
+                            <div className="pt-2.5 border-t border-neutral-100 flex items-center justify-between gap-2.5 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-0.5">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className="w-3.5 h-3.5 text-neutral-300 fill-transparent"
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] text-neutral-500 font-medium">
+                                  Share your experience with this bespoke garment
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => openReviewModal(prod, order, false)}
+                                className="px-3 py-1 rounded-full bg-[#FFF0F6] hover:bg-[#FFE0ED] text-[#D6007A] border border-pink-200 text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                              >
+                                <Star className="w-3 h-3 fill-[#D6007A] text-[#D6007A]" />
+                                <span>Rate & Review</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {/* Load More Orders Action */}
+          {Boolean(pagination && (pagination.lastPage || pagination.totalPages || 1) > page) && (
+            <div className="mt-8 text-center pb-4">
+              <button
+                type="button"
+                disabled={isLoadingMore}
+                onClick={handleLoadMore}
+                className="px-6 py-2.5 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-xs font-bold text-neutral-800 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {isLoadingMore ? 'Loading More Orders...' : 'Load More Past Orders'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+          </main>
+        </div>
+
+        {/* Mobile Filter Modal / Drawer */}
+        {mobileFilterOpen && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-[#D6007A]" />
+                  <h3 className="text-base font-bold text-neutral-900">Filters</h3>
+                  {activeFilterCount > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-pink-100 text-[#D6007A] text-[10px] font-bold flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFilterOpen(false)}
+                  className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-6 overflow-y-auto">
+                {/* Order Status */}
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3">
+                    Order Status
+                  </h4>
+                  <div className="space-y-3">
+                    {STATUS_OPTIONS.map((st) => {
+                      const isChecked = selectedStatuses.includes(st)
+                      const count = statusCounts[st] || 0
+                      return (
+                        <label
+                          key={st}
+                          className="flex items-center justify-between text-xs font-medium text-neutral-700 cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleStatusFilter(st)}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                                isChecked
+                                  ? 'bg-[#D6007A] border-[#D6007A] text-white'
+                                  : 'border-neutral-300 bg-white'
+                              }`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                            <span className={isChecked ? 'font-semibold text-neutral-900 text-sm' : 'text-neutral-700 text-sm'}>
+                              {st}
+                            </span>
+                          </div>
+                          <span className="text-xs text-neutral-400 font-normal">
+                            ({count})
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-100" />
+
+                {/* Order Time */}
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3">
+                    Order Time
+                  </h4>
+                  <div className="space-y-3">
+                    {TIME_OPTIONS.map((tf) => {
+                      const isChecked = selectedTimeFilters.includes(tf)
+                      const count = timeCounts[tf] || 0
+                      return (
+                        <label
+                          key={tf}
+                          className="flex items-center justify-between text-xs font-medium text-neutral-700 cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleTimeFilter(tf)}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                                isChecked
+                                  ? 'bg-[#D6007A] border-[#D6007A] text-white'
+                                  : 'border-neutral-300 bg-white'
+                              }`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                            <span className={isChecked ? 'font-semibold text-neutral-900 text-sm' : 'text-neutral-700 text-sm'}>
+                              {tf}
+                            </span>
+                          </div>
+                          <span className="text-xs text-neutral-400 font-normal">
+                            ({count})
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="px-4 py-2.5 text-xs font-bold text-neutral-600 hover:text-neutral-900 cursor-pointer"
+                >
+                  Clear All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileFilterOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#D6007A] hover:bg-[#B80068] text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                >
+                  Apply Filters ({filteredOrders.length})
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Review Modal for Order Item (Supports both New and Edit modes) */}
+      {reviewingItem && (
+        <WriteReviewModal
+          isOpen={Boolean(reviewingItem)}
+          onClose={() => setReviewingItem(null)}
+          saleOrderId={reviewingItem.saleOrderId}
+          productId={reviewingItem.productId}
+          productName={reviewingItem.productName}
+          productImage={reviewingItem.productImage}
+          currentUser={currentUser}
+          isEditMode={Boolean(reviewingItem.isEditMode)}
+          initialRating={reviewingItem.initialRating}
+          initialReview={reviewingItem.initialReview}
+          initialImages={reviewingItem.initialImages}
+          onSuccess={(savedData) => {
+            if (reviewingItem.saleOrderId) {
+              setUserReviewsMap((prev) => ({
+                ...prev,
+                [reviewingItem.saleOrderId]: savedData,
+              }))
+            }
+            loadOrdersAndReviews()
+          }}
+        />
+      )}
+
+      {/* Invoice Modal Preview */}
+      {isInvoiceModalOpen && (
+        <InvoiceModal
+          isOpen={isInvoiceModalOpen}
+          onClose={() => {
+            setIsInvoiceModalOpen(false)
+            setInvoiceOrderId(null)
+          }}
+          orderId={invoiceOrderId}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   )
 }

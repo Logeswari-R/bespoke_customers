@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Star, Heart, ShoppingBag, Sparkles } from 'lucide-react'
-import { getDesignerDetails, getProducts } from '../../services/api'
+import { ArrowLeft, Star, Heart, ShoppingBag, Sparkles, Zap, Check, Scissors } from 'lucide-react'
+import { getDesignerDetails, getProducts, isProductCustomizable } from '../../services/api'
+import { notifyContentReady } from '../../utils/scrollRestoration'
 
 export default function DesignerPage({
   designer,
@@ -9,6 +10,9 @@ export default function DesignerPage({
   onAddToCart,
   wishlistIds = [],
   onToggleWishlist,
+  cartItems = [],
+  onOpenCart,
+  onBuyNow,
 }) {
   const [designerData, setDesignerData] = useState(designer)
   const [products, setProducts] = useState([])
@@ -25,6 +29,8 @@ export default function DesignerPage({
 
       try {
         const details = await getDesignerDetails(designerId)
+        const targetVendorId = details?.id || details?.designer_id || designerId
+
         if (!ignore && details) {
           setDesignerData((prev) => ({
             ...prev,
@@ -56,24 +62,41 @@ export default function DesignerPage({
           if (Array.isArray(details.products) && details.products.length > 0) {
             setProducts(details.products)
           } else {
-            const allProds = await getProducts({ limit: 16 })
-            if (!ignore) setProducts(allProds || [])
+            // Fetch strictly for this designer's vendor_id
+            const vendorProds = await getProducts({ vendor_id: targetVendorId })
+            if (!ignore) {
+              const matched = Array.isArray(vendorProds)
+                ? vendorProds.filter(
+                    (p) => String(p.vendor_id) === String(targetVendorId)
+                  )
+                : []
+              setProducts(matched)
+            }
           }
         } else {
-          const allProds = await getProducts({ limit: 16 })
-          if (!ignore) setProducts(allProds || [])
+          // Fallback if details endpoint unavailable: query strictly by vendor_id
+          const vendorProds = await getProducts({ vendor_id: targetVendorId })
+          if (!ignore) {
+            const matched = Array.isArray(vendorProds)
+              ? vendorProds.filter(
+                  (p) => String(p.vendor_id) === String(targetVendorId)
+                )
+              : []
+            setProducts(matched)
+          }
         }
       } catch (err) {
         console.error('Error fetching designer details:', err)
-        const allProds = await getProducts({ limit: 16 })
-        if (!ignore) setProducts(allProds || [])
+        if (!ignore) setProducts([])
       } finally {
-        if (!ignore) setIsLoading(false)
+        if (!ignore) {
+          setIsLoading(false)
+          notifyContentReady()
+        }
       }
     }
 
     fetchDesignerInfoAndProducts()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
 
     return () => {
       ignore = true
@@ -175,16 +198,45 @@ export default function DesignerPage({
               />
             ))}
           </div>
+        ) : products.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-pink-100 p-12 text-center max-w-md mx-auto shadow-xs">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-pink-50 flex items-center justify-center text-[var(--theme-primary)]">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-neutral-900 mb-1">
+              New Collection Arriving Soon
+            </h3>
+            <p className="text-xs text-neutral-500 mb-6 leading-relaxed">
+              {designerName} is handcrafting bespoke silhouettes for this atelier collection. Check back soon for exclusive drops.
+            </p>
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-5 py-2.5 bg-neutral-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+            >
+              Explore Other Designers
+            </button>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 sm:gap-4">
             {products.map((p) => {
               const isWishlisted = wishlistIds.map(Number).includes(Number(p.id))
-              const price = p.discount_price || p.actual_price || 499
+              const price = p.discount_price || p.price || p.actual_price || 499
+              const originalPrice = p.original_price || p.actual_price || p.price || price
               const img =
                 p.image ||
                 p.img_path ||
                 p.main_image ||
+                (Array.isArray(p.images) && p.images[0]) ||
                 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80'
+
+              const isCustomizable = isProductCustomizable(p)
+              const discountPct =
+                p.discount_percentage > 0
+                  ? p.discount_percentage
+                  : originalPrice > price && originalPrice > 0
+                  ? Math.round(((originalPrice - price) / originalPrice) * 100)
+                  : 0
 
               return (
                 <div
@@ -195,13 +247,33 @@ export default function DesignerPage({
                   <div className="relative aspect-[3/4] bg-neutral-100 overflow-hidden">
                     <img
                       src={img}
-                      alt={p.product_name}
+                      alt={p.product_name || p.name || 'Product'}
                       className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-106"
                       onError={(e) => {
                         e.target.src =
                           'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=600&q=80'
                       }}
                     />
+
+                    {/* Customizable Badge (Compact, Small & Discreet) */}
+                    {isCustomizable && (
+                      <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                        <span className="inline-flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/90 backdrop-blur-xs text-[#C00078] border border-pink-200/80 shadow-2xs select-none">
+                          <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
+                          <span>Custom</span>
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Small Offer Percentage Badge */}
+                    {discountPct > 0 && (
+                      <div className="absolute top-2 right-9 z-10 pointer-events-none">
+                        <span className="bg-[#C00078] text-white text-[8.5px] font-extrabold tracking-tight px-1.5 py-0.5 rounded shadow-2xs">
+                          {discountPct}% OFF
+                        </span>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={(e) => {
@@ -220,28 +292,106 @@ export default function DesignerPage({
                     </button>
                   </div>
 
-                  <div className="p-3.5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-neutral-900 group-hover:text-theme-primary transition-colors line-clamp-1">
-                        {p.product_name}
-                      </h3>
-                      <p className="text-[11px] text-neutral-500">{designerName}</p>
+                  {/* Product Info Section (Redesigned with Strict Alignment & Tokens) */}
+                  <div className="p-4 flex-1 flex flex-col justify-between bg-white text-left">
+                    <div className="flex-1 flex flex-col">
+                      {/* Row 1: Product name on left corner & Custom badge on right corner */}
+                      <div className="flex items-start justify-between gap-2">
+                        <h3
+                          className="text-[16px] font-semibold text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
+                          title={p.product_name || p.name || 'Curated Silhouette'}
+                        >
+                          {p.product_name || p.name || 'Curated Silhouette'}
+                        </h3>
+
+                        {isCustomizable && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
+                            <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
+                            <span>CUSTOM</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Row 2: Vendor / shop name */}
+                      <p
+                        className="text-[13.5px] font-normal text-[#77717C] text-left truncate mt-1"
+                        title={p.vendor_name || designerName}
+                      >
+                        {p.vendor_name || designerName}
+                      </p>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-neutral-100 flex items-center justify-between">
-                      <span className="text-sm sm:text-base font-extrabold text-theme-primary">
-                        ₹{price}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onAddToCart(p)
-                        }}
-                        className="p-2 bg-theme-gradient text-white rounded-lg cursor-pointer shadow-xs"
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                      </button>
+                    {/* 4. Subtle divider & 5. Horizontal Price Layout */}
+                    <div className="border-t border-[#F0E5EC] mt-3 pt-3 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span className="text-[20px] font-bold text-[#C00078] leading-none">
+                          ₹{price}
+                        </span>
+                        {originalPrice && Number(originalPrice) > Number(price) && (
+                          <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
+                            ₹{originalPrice}
+                          </span>
+                        )}
+                        {discountPct > 0 && (
+                          <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
+                            {discountPct}% OFF
+                          </span>
+                        )}
+                      </div>
+
+                      {(() => {
+                        const isInCart = cartItems.some(
+                          (c) => Number(c.product_id || c.product?.id || c.id) === Number(p.id)
+                        )
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            {isInCart ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (onOpenCart) onOpenCart()
+                                }}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg cursor-pointer shadow-2xs flex items-center gap-1 transition-colors"
+                                title="In Bag - Go to Bag"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span className="hidden sm:inline">In Bag</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onAddToCart(p)
+                                }}
+                                className="p-1.5 bg-[#C00078] hover:bg-[#A80069] text-white rounded-lg cursor-pointer shadow-2xs flex items-center justify-center transition-colors"
+                                aria-label="Add to bag"
+                                title="Add to Bag"
+                              >
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (onBuyNow) {
+                                  onBuyNow(p)
+                                } else if (onSelectProduct) {
+                                  onSelectProduct(p)
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-[#222222] hover:bg-[#111111] text-white text-[11px] font-bold rounded-lg cursor-pointer shadow-2xs flex items-center gap-1 transition-colors"
+                              title="Buy Now"
+                            >
+                              <Zap className="w-3 h-3 text-amber-400" />
+                              <span>Buy</span>
+                            </button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>

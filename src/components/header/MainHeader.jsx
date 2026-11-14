@@ -27,7 +27,13 @@ export default function MainHeader({
   onOpenOrders,
   onOpenAddresses,
   onOpenMeasurements,
+  onOpenNotifications,
+  onOpenInvoices,
+  onOpenPayments,
   onOpenSupport,
+  onOpenProfile,
+  onOpenHistory,
+  unreadNotificationsCount = null,
 }) {
   const [showMobileSearch, setShowMobileSearch] = useState(false)
 
@@ -85,7 +91,13 @@ export default function MainHeader({
               onOpenOrders={onOpenOrders}
               onOpenAddresses={onOpenAddresses}
               onOpenMeasurements={onOpenMeasurements}
+              onOpenNotifications={onOpenNotifications}
+              onOpenInvoices={onOpenInvoices}
+              onOpenPayments={onOpenPayments}
               onOpenSupport={onOpenSupport}
+              onOpenProfile={onOpenProfile}
+              onOpenHistory={onOpenHistory}
+              unreadNotificationsCount={unreadNotificationsCount}
             />
 
             {/* Wishlist Icon */}

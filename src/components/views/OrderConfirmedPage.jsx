@@ -1,6 +1,8 @@
 import React from 'react'
 import { CheckCircle2, Package, MapPin, ShoppingBag } from 'lucide-react'
 import { formatImageUrl } from '../../services/api'
+import { LottieAnimation } from '../animations'
+import orderSuccessAnimationData from '../../../lottiefiles/Success.json'
 
 export default function OrderConfirmedPage({
   orderData,
@@ -16,9 +18,20 @@ export default function OrderConfirmedPage({
   return (
     <div className="min-h-screen bg-[var(--theme-bg)] py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
       <div className="max-w-xl w-full bg-white rounded-3xl p-8 sm:p-10 border border-neutral-100 shadow-xl text-center">
-        {/* Animated Checkmark Emblem */}
-        <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xs animate-in zoom-in-75 duration-300">
-          <CheckCircle2 className="w-10 h-10" />
+        {/* Animated Lottie Success Emblem */}
+        <div className="w-28 h-28 sm:w-32 sm:h-32 mx-auto mb-2 flex items-center justify-center overflow-hidden">
+          <LottieAnimation
+            animationData={orderSuccessAnimationData}
+            loop={false}
+            autoplay={true}
+            ariaLabel="Order confirmed celebration"
+            fallbackComponent={
+              <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+            }
+            className="w-full h-full"
+          />
         </div>
 
         <span className="badge-theme-subtle text-[11px] uppercase tracking-wider py-1 px-3">

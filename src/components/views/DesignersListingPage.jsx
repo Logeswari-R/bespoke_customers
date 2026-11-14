@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Star, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react'
 import { getDesigners } from '../../services/api'
+import { PageLoadingAnimation } from '../animations'
+import { notifyContentReady } from '../../utils/scrollRestoration'
 
 export default function DesignersListingPage({
   onBack,
@@ -21,11 +23,13 @@ export default function DesignersListingPage({
       } catch (err) {
         console.error('Failed to load designers from API:', err)
       } finally {
-        if (!ignore) setIsLoading(false)
+        if (!ignore) {
+          setIsLoading(false)
+          notifyContentReady()
+        }
       }
     }
     loadDesigners()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
     return () => {
       ignore = true
     }
@@ -78,12 +82,12 @@ export default function DesignersListingPage({
       {/* Designers Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {isLoading ? (
-          <div className="min-h-[40vh] flex flex-col items-center justify-center">
-            <div className="w-10 h-10 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="mt-4 text-xs font-semibold text-neutral-400">
-              Loading master designers from API...
-            </p>
-          </div>
+          <PageLoadingAnimation
+            message="Loading master designers..."
+            subMessage="Connecting to renowned atelier creators"
+            minHeight="min-h-[40vh]"
+            className="bg-transparent"
+          />
         ) : designers.length === 0 ? (
           <div className="min-h-[30vh] flex flex-col items-center justify-center bg-white/5 rounded-2xl border border-white/10 p-8 text-center">
             <Sparkles className="w-12 h-12 text-neutral-600 mb-3" />
