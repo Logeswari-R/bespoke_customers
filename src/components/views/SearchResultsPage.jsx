@@ -250,7 +250,7 @@ export default function SearchResultsPage({
   // Active filter chips calculation
   const activeChips = []
   selectedCategories.forEach((catId) => {
-    const catObj = apiResult?.filters?.categories?.find((c) => String(c.id) === String(catId))
+    const catObj = apiResult?.filters?.categories?.find((c) => String(c.id) === String(catId) || String(c.id).split(',').includes(String(catId)))
     activeChips.push({
       id: `cat-${catId}`,
       label: `Category: ${catObj?.name || catId}`,
@@ -258,7 +258,7 @@ export default function SearchResultsPage({
     })
   })
   selectedSubcategories.forEach((subId) => {
-    const subObj = apiResult?.filters?.subcategories?.find((s) => String(s.id) === String(subId))
+    const subObj = apiResult?.filters?.subcategories?.find((s) => String(s.id) === String(subId) || String(s.id).split(',').includes(String(subId)))
     activeChips.push({
       id: `sub-${subId}`,
       label: `Style: ${subObj?.name || subId}`,
@@ -410,7 +410,12 @@ export default function SearchResultsPage({
           {expandedSections.subcategories && (
             <div className="mt-2.5 space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {filtersData.subcategories.map((sc) => {
-                const isSelected = selectedSubcategories.includes(String(sc.id))
+                const isSelected = selectedSubcategories.some(
+                  (sel) =>
+                    String(sel) === String(sc.id) ||
+                    String(sc.id).split(',').includes(String(sel)) ||
+                    String(sel).split(',').includes(String(sc.id))
+                )
                 return (
                   <label
                     key={`sc-${sc.id}`}
@@ -850,7 +855,7 @@ export default function SearchResultsPage({
         {/* Title Bar & Controls */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-[#F0E5EC]">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#24212A] tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[#24212A] tracking-normal">
               {activeQuery ? (
                 <>
                   Search Results for <span className="text-[#C00078] italic">&ldquo;{activeQuery}&rdquo;</span>
@@ -945,7 +950,7 @@ export default function SearchResultsPage({
             <div className="flex items-center justify-between pb-4 border-b border-[#F0E5EC] mb-4">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-[#C00078]" />
-                <h2 className="font-serif font-bold text-sm text-[#24212A] uppercase tracking-wider">
+                <h2 className="font-semibold text-sm text-[#24212A] tracking-normal">
                   Refine Search
                 </h2>
               </div>
@@ -975,7 +980,7 @@ export default function SearchResultsPage({
                 <div className="w-16 h-16 bg-[#FFF1F8] border border-[#F8D4E8] rounded-full flex items-center justify-center mx-auto mb-4 text-[#C00078]">
                   <Search className="w-7 h-7" />
                 </div>
-                <h3 className="text-lg font-serif font-bold text-[#24212A] mb-1">
+                <h3 className="text-lg font-semibold text-[#24212A] mb-1">
                   No matching creations found
                 </h3>
                 <p className="text-xs sm:text-sm text-[#77717C] max-w-md mx-auto mb-6">
@@ -1021,7 +1026,16 @@ export default function SearchResultsPage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
                   {displayedProducts.map((p) => {
                     const isWishlisted = wishlistIds.some((id) => String(id) === String(p.id))
-                    const isInCart = cartItems.some((ci) => String(ci.id) === String(p.id) || String(ci.product_id) === String(p.id))
+                    const targetMatId = p.material_id || p.variant_id || p.selectedMaterialId || null
+                    const isInCart = cartItems.some((ci) => {
+                      const sameProd = String(ci.id) === String(p.id) || String(ci.product_id) === String(p.id)
+                      if (!sameProd) return false
+                      if (targetMatId) {
+                        const itemMatId = ci.material_id || ci.materialId || null
+                        if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                      }
+                      return true
+                    })
                     const isCustomizable = isProductCustomizable(p)
                     const pPrice = Number(p.effective_price || p.price || 499)
                     const pOriginalPrice = Number(p.original_price || pPrice)
@@ -1029,7 +1043,7 @@ export default function SearchResultsPage({
 
                     return (
                       <div
-                        key={`search-prod-${p.id}`}
+                        key={p.unique_id || `search-prod-${p.id}-${p.variant_id || p.material_id || 0}`}
                         onClick={() => onSelectProduct && onSelectProduct(p)}
                         className="group bg-white rounded-2xl border border-[#F0E5EC] overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col cursor-pointer relative"
                       >
@@ -1098,10 +1112,20 @@ export default function SearchResultsPage({
                                   if (onAddToCart) {
                                     onAddToCart({
                                       id: p.id,
-                                      title: p.product_name || p.title,
+                                      product_id: p.id,
+                                      material_id: p.material_id || p.variant_id || p.selectedMaterialId,
+                                      materialId: p.material_id || p.variant_id || p.selectedMaterialId,
+                                      price_id: p.price_id || p.priceId,
+                                      priceId: p.price_id || p.priceId,
+                                      title: p.title || p.product_name,
+                                      product_name: p.product_name || p.title,
                                       price: pPrice,
+                                      original_price: pOriginalPrice,
                                       image: p.image || p.main_image,
-                                      vendor: p.brand || 'Bespoke',
+                                      color: p.color,
+                                      fabric: p.fabric,
+                                      vendor: p.brand || p.shop_name || 'Bespoke',
+                                      size: p.size || (p.sizes && p.sizes[0]) || 'Standard',
                                     })
                                   }
                                 }}
@@ -1143,7 +1167,7 @@ export default function SearchResultsPage({
 
                             {/* Product Title */}
                             <h3
-                              className="text-sm font-semibold text-[#24212A] line-clamp-2 leading-snug group-hover:text-[#C00078] transition-colors"
+                              className="text-[14.5px] font-medium text-[#24212A] line-clamp-2 leading-snug group-hover:text-[#C00078] transition-colors"
                               title={p.product_name || p.title}
                             >
                               {p.product_name || p.title}
@@ -1172,16 +1196,16 @@ export default function SearchResultsPage({
                           {/* Price & Mobile Actions */}
                           <div className="pt-3 border-t border-[#F0E5EC] mt-3 flex items-center justify-between gap-2">
                             <div className="flex items-baseline gap-1.5 flex-wrap">
-                              <span className="text-base sm:text-lg font-bold text-[#C00078]">
+                              <span className="text-[17px] font-bold text-[#C00078] tabular-nums leading-none">
                                 ₹{pPrice}
                               </span>
                               {pOriginalPrice > pPrice && (
-                                <span className="text-xs text-neutral-400 line-through">
+                                <span className="text-xs text-neutral-400 line-through tabular-nums leading-none">
                                   ₹{pOriginalPrice}
                                 </span>
                               )}
                               {pDiscount > 0 && (
-                                <span className="text-[10px] font-extrabold text-[#C00078] bg-[#FFF1F8] px-1.5 py-0.5 rounded">
+                                <span className="text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-1.5 py-0.5 rounded leading-none">
                                   {pDiscount}% OFF
                                 </span>
                               )}
@@ -1196,10 +1220,20 @@ export default function SearchResultsPage({
                                   if (onAddToCart) {
                                     onAddToCart({
                                       id: p.id,
-                                      title: p.product_name || p.title,
+                                      product_id: p.id,
+                                      material_id: p.material_id || p.variant_id || p.selectedMaterialId,
+                                      materialId: p.material_id || p.variant_id || p.selectedMaterialId,
+                                      price_id: p.price_id || p.priceId,
+                                      priceId: p.price_id || p.priceId,
+                                      title: p.title || p.product_name,
+                                      product_name: p.product_name || p.title,
                                       price: pPrice,
+                                      original_price: pOriginalPrice,
                                       image: p.image || p.main_image,
-                                      vendor: p.brand || 'Bespoke',
+                                      color: p.color,
+                                      fabric: p.fabric,
+                                      vendor: p.brand || p.shop_name || 'Bespoke',
+                                      size: p.size || (p.sizes && p.sizes[0]) || 'Standard',
                                     })
                                   }
                                 }}
@@ -1297,7 +1331,7 @@ export default function SearchResultsPage({
             <div className="p-4 border-b border-[#F0E5EC] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-[#C00078]" />
-                <h3 className="font-serif font-bold text-sm text-[#24212A] uppercase tracking-wider">
+                <h3 className="font-semibold text-sm text-[#24212A] tracking-normal">
                   Filters
                 </h3>
               </div>

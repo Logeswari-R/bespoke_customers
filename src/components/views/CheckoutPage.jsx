@@ -279,6 +279,35 @@ export default function CheckoutPage({
     }, 0)
   }, [selectedItems])
 
+  const selectedGst = useMemo(() => {
+    const sum = selectedItems.reduce((acc, item) => {
+      const rawPct = item.gst_percentage !== undefined && item.gst_percentage !== null ? Number(item.gst_percentage) : null
+      const gstPct = rawPct !== null && rawPct > 0 ? rawPct : 18
+      if (item.total_gst !== undefined && item.total_gst !== null && Number(item.total_gst) > 0) {
+        return acc + Number(item.total_gst)
+      }
+      if (gstPct > 0) {
+        const itemTotal = (Number(item.price) || 0) * (item.quantity || 1)
+        return acc + Math.round(((itemTotal * gstPct) / 100) * 100) / 100
+      }
+      return acc
+    }, 0)
+    return Math.round(sum * 100) / 100
+  }, [selectedItems])
+
+  const gstSummaryLabel = useMemo(() => {
+    const names = []
+    selectedItems.forEach((item) => {
+      const rawPct = item.gst_percentage !== undefined && item.gst_percentage !== null ? Number(item.gst_percentage) : null
+      const pct = rawPct !== null && rawPct > 0 ? rawPct : 18
+      const name = item.gst_name || (pct > 0 ? `GST ${pct}%` : 'GST 18%')
+      if (name && !names.includes(name)) {
+        names.push(name)
+      }
+    })
+    return names.length > 0 ? names.join(', ') : 'GST 18%'
+  }, [selectedItems])
+
   const productDiscount = Math.max(0, selectedOriginalSubtotal - selectedSubtotal)
 
   // Delivery fee: Active delivery charge directly from MySQL table delivery_charge
@@ -298,7 +327,10 @@ export default function CheckoutPage({
     return Math.min(selectedSubtotal, rawDiscount)
   }, [appliedPromo, selectedSubtotal])
 
-  const grandTotal = Math.max(0, selectedSubtotal - couponDiscount + deliveryFee)
+  const grandTotal = Math.max(
+    0,
+    Math.round((selectedSubtotal - couponDiscount + selectedGst + deliveryFee) * 100) / 100
+  )
   const totalSavings = productDiscount + couponDiscount
 
   // --------------------------------------------------------------------------
@@ -826,8 +858,8 @@ export default function CheckoutPage({
               <span className="w-4 h-px bg-neutral-300" />
 
               {/* Step 2: Address & Fit (Active) */}
-              <div className="flex items-center gap-1.5 text-theme-primary font-bold text-xs">
-                <div className="w-5 h-5 rounded-full bg-pink-100 flex items-center justify-center text-theme-primary font-black text-[10px] ring-2 ring-pink-300/50">
+              <div className="flex items-center gap-1.5 text-[#C00078] font-semibold text-xs">
+                <div className="w-5 h-5 rounded-full bg-[#FFF5FA] flex items-center justify-center text-[#C00078] font-semibold text-[11px] ring-2 ring-[#C00078]/20">
                   2
                 </div>
                 <span>Address & Fit</span>
@@ -963,7 +995,7 @@ export default function CheckoutPage({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-black uppercase tracking-wider text-emerald-800">
+                        <span className="font-semibold text-emerald-800">
                           {appliedPromo.code || appliedPromo.promocode}
                         </span>
                         <span className="badge-success text-[10px] py-0.5 px-2">APPLIED</span>
@@ -1105,7 +1137,7 @@ export default function CheckoutPage({
                           className="w-20 h-24 sm:w-24 sm:h-28 object-cover rounded-2xl border border-neutral-100 shadow-xs"
                         />
                         {discountPercent > 0 && (
-                          <span className="absolute top-1 left-1 bg-neutral-900 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md">
+                          <span className="absolute top-1 left-1 bg-[#24212A] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-md">
                             {discountPercent}% OFF
                           </span>
                         )}
@@ -1147,9 +1179,19 @@ export default function CheckoutPage({
                           <span className="bg-neutral-100 px-2.5 py-0.5 rounded-lg font-medium text-[11px]">
                             Size: <strong className="text-neutral-800">{item.size || 'Standard'}</strong>
                           </span>
+                          {(item.color || item.material_name || item.variant_name) && (
+                            <span className="bg-neutral-100 px-2.5 py-0.5 rounded-lg font-medium text-[11px]">
+                              Color: <strong className="text-neutral-800">{item.color || item.material_name || item.variant_name}</strong>
+                            </span>
+                          )}
                           {item.material && (
                             <span className="bg-neutral-100 px-2.5 py-0.5 rounded-lg font-medium text-[11px]">
                               Fabric: <strong className="text-neutral-800">{item.material}</strong>
+                            </span>
+                          )}
+                          {Number(item.gst_percentage || 0) > 0 && (
+                            <span className="bg-pink-50 text-[var(--theme-primary)] border border-pink-200/80 px-2 py-0.5 rounded-lg font-semibold text-[11px]">
+                              {item.gst_name || `GST ${item.gst_percentage}%`}
                             </span>
                           )}
                         </div>
@@ -1171,13 +1213,18 @@ export default function CheckoutPage({
                         {/* Price & Quantity Controls */}
                         <div className="mt-3 pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-3">
                           {/* Price Tag */}
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-black text-neutral-900">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-[16px] font-bold text-[#24212A] tabular-nums">
                               ₹{itemTotalPrice}
                             </span>
                             {itemTotalActual > itemTotalPrice && (
-                              <span className="text-xs text-neutral-400 line-through">
+                              <span className="text-[13px] text-[#77717C] line-through tabular-nums">
                                 ₹{itemTotalActual}
+                              </span>
+                            )}
+                            {Number(item.gst_percentage || 0) > 0 && (
+                              <span className="text-[10px] text-neutral-500 font-medium">
+                                + ₹{Math.round(((itemTotalPrice * Number(item.gst_percentage)) / 100) * 100) / 100} GST ({item.gst_percentage}%)
                               </span>
                             )}
                           </div>
@@ -1282,6 +1329,16 @@ export default function CheckoutPage({
                   </div>
                 )}
 
+                <div className="flex justify-between text-neutral-700">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium">GST</span>
+                    {gstSummaryLabel && (
+                      <span className="text-[10px] text-neutral-500 font-normal">({gstSummaryLabel})</span>
+                    )}
+                  </div>
+                  <span className="font-bold text-neutral-900">+ ₹{selectedGst}</span>
+                </div>
+
                 <div className="flex justify-between">
                   <span>Delivery Charges</span>
                   {deliveryFee === 0 ? (
@@ -1313,17 +1370,19 @@ export default function CheckoutPage({
               {/* Total Amount */}
               <div className="pt-4 flex justify-between items-baseline mb-4">
                 <div>
-                  <span className="text-sm font-black text-neutral-900">Total Amount</span>
-                  <p className="text-[10px] text-neutral-400">Inclusive of all taxes & artisanal duties</p>
+                  <span className="text-[14px] font-semibold text-[#24212A]">Total Amount</span>
+                  <p className="text-[11px] text-[#77717C] font-normal">
+                    {selectedGst > 0 ? `Includes ₹${selectedGst} GST & delivery` : 'Inclusive of all taxes & artisanal duties'}
+                  </p>
                 </div>
-                <span className="text-2xl font-black text-[var(--theme-primary)]">
+                <span className="text-[22px] font-bold text-[#C00078] tabular-nums">
                   ₹{grandTotal}
                 </span>
               </div>
 
               {/* Savings Banner */}
               {totalSavings > 0 && selectedItems.length > 0 && (
-                <div className="mb-5 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs font-bold text-emerald-800">
+                <div className="mb-5 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs font-semibold text-emerald-800">
                   <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>You're saving ₹{totalSavings} on this order!</span>
                 </div>
@@ -1334,7 +1393,7 @@ export default function CheckoutPage({
                 type="button"
                 disabled={isPlacingOrder || selectedItems.length === 0}
                 onClick={handlePlaceOrder}
-                className="w-full py-4 btn-theme text-xs font-bold uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                className="w-full py-3.5 btn-theme text-[13px] sm:text-[14px] font-semibold tracking-normal shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
               >
                 {isPlacingOrder ? (
                   <>
@@ -1377,7 +1436,7 @@ export default function CheckoutPage({
               Total Payable ({selectedItems.length} items)
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-black text-[var(--theme-primary)]">
+              <span className="text-lg font-bold text-[#C00078] tabular-nums">
                 ₹{grandTotal}
               </span>
               {totalSavings > 0 && selectedItems.length > 0 && (
@@ -1777,7 +1836,7 @@ export default function CheckoutPage({
                     className="p-3.5 rounded-2xl border border-pink-100 bg-pink-50/20 flex items-center justify-between gap-3"
                   >
                     <div>
-                      <span className="text-xs font-black text-[var(--theme-primary)] uppercase tracking-wider">
+                      <span className="text-xs font-semibold text-[#C00078] tracking-wide">
                         {code}
                       </span>
                       <p className="text-[11px] text-neutral-600 mt-0.5">

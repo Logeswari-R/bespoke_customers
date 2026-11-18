@@ -172,7 +172,7 @@ export default function DesignerPage({
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white drop-shadow-md">
               {designerName}
             </h1>
             <p className="text-xs sm:text-sm text-neutral-300 mt-1 max-w-lg">
@@ -327,11 +327,11 @@ export default function DesignerPage({
                         <span className="text-[20px] font-bold text-[#C00078] leading-none">
                           ₹{price}
                         </span>
-                        {originalPrice && Number(originalPrice) > Number(price) && (
+                        {Number(originalPrice) > Number(price) ? (
                           <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
                             ₹{originalPrice}
                           </span>
-                        )}
+                        ) : null}
                         {discountPct > 0 && (
                           <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
                             {discountPct}% OFF
@@ -340,9 +340,17 @@ export default function DesignerPage({
                       </div>
 
                       {(() => {
-                        const isInCart = cartItems.some(
-                          (c) => Number(c.product_id || c.product?.id || c.id) === Number(p.id)
-                        )
+                        const prodId = Number(p.product_id || p.id)
+                        const targetMatId = p.material_id || p.variant_id || p.selectedMaterialId || null
+                        const isInCart = cartItems.some((c) => {
+                          const sameProd = Number(c.product_id || c.product?.id || c.id) === prodId
+                          if (!sameProd) return false
+                          if (targetMatId) {
+                            const itemMatId = c.material_id || c.materialId || null
+                            if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                          }
+                          return true
+                        })
                         return (
                           <div className="flex items-center gap-1.5">
                             {isInCart ? (

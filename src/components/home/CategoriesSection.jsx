@@ -18,7 +18,7 @@ export default function CategoriesSection({
               <Sparkles className="w-2.5 h-2.5" />
               <span>Atelier Curations</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900">
+            <h2 className="text-[22px] sm:text-[24px] font-semibold tracking-normal text-[#24212A]">
               Handcrafted <span className="text-theme-gradient">Categories</span>
             </h2>
           </div>

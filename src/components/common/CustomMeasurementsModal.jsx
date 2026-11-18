@@ -770,7 +770,7 @@ export default function CustomMeasurementsModal({
                               )
                             }
                             placeholder={item.standard_value ? `${item.standard_value}` : '0.0'}
-                            className={`w-full py-2 px-3 text-right pr-7 rounded-xl text-xs font-black border transition-all focus:outline-none ${
+                            className={`w-full py-2 px-3 text-right pr-7 rounded-xl text-xs font-semibold tabular-nums border transition-all focus:outline-none ${
                               err
                                 ? 'border-rose-400 bg-white text-rose-700 ring-2 ring-rose-100'
                                 : hasValidNumber

@@ -826,6 +826,8 @@ export async function addToCartApi({
   userId,
   productId,
   priceId = null,
+  materialId = null,
+  material_id = null,
   quantity = 1,
   size = null,
   vendorId = null,
@@ -841,6 +843,7 @@ export async function addToCartApi({
         user_id: userId,
         product_id: productId,
         price_id: priceId,
+        material_id: materialId || material_id || null,
         quantity,
         cart_qty: quantity,
         size,
@@ -1535,8 +1538,10 @@ export function isProductCustomizable(product) {
  * Authoritative unread notifications count from backend API
  */
 export async function getUnreadNotificationCountApi({ recipientType = 'user', recipientId } = {}) {
+  if (!recipientId) return 0
   try {
-    const res = await fetch(`${NODE_API}/api/notifications/unread-count?recipient_type=${recipientType}&recipient_id=${recipientId}`)
+    const cleanId = String(recipientId).replace(/^(customer_|user_)/, '')
+    const res = await fetch(`${NODE_API}/api/notifications/unread-count?recipient_type=${recipientType}&recipient_id=${cleanId}`)
     if (res.ok) {
       const json = await res.json()
       return json.unread_count ?? json.count ?? 0
@@ -1551,11 +1556,13 @@ export async function getUnreadNotificationCountApi({ recipientType = 'user', re
  * Mark all notifications as read
  */
 export async function markAllNotificationsReadApi({ recipientType = 'user', recipientId } = {}) {
+  if (!recipientId) return false
   try {
+    const cleanId = String(recipientId).replace(/^(customer_|user_)/, '')
     const res = await fetch(`${NODE_API}/api/notifications/read-all`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient_type: recipientType, recipient_id: recipientId }),
+      body: JSON.stringify({ recipient_type: recipientType, recipient_id: cleanId }),
     })
     return res.ok
   } catch (err) {
@@ -1981,10 +1988,23 @@ export async function uploadChatAttachmentApi(file) {
 /**
  * Fetch or generate invoice(s) for a specific order
  */
-export async function getOrderInvoicesApi(orderId, userId = null) {
+export async function getOrderInvoicesApi(orderId, userId = null, saleOrderId = null) {
   try {
-    const uId = userId || getStoredUserId()
-    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    let uId = null
+    let sId = null
+    if (typeof userId === 'object' && userId !== null) {
+      uId = userId.userId || userId.user_id || getStoredUserId()
+      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_id || null
+    } else {
+      uId = userId || getStoredUserId()
+      sId = saleOrderId || null
+    }
+
+    const params = new URLSearchParams()
+    if (sId) params.append('sale_order_id', sId)
+    else if (uId) params.append('user_id', uId)
+
+    const query = params.toString() ? `?${params.toString()}` : ''
     const res = await fetch(`${NODE_API}/api/customer/orders/${orderId}/invoice${query}`)
     const json = await res.json()
     return json
@@ -1997,10 +2017,23 @@ export async function getOrderInvoicesApi(orderId, userId = null) {
 /**
  * Fetch single invoice details by invoice ID
  */
-export async function getInvoiceDetailsApi(invoiceId, userId = null) {
+export async function getInvoiceDetailsApi(invoiceId, userId = null, saleOrderId = null) {
   try {
-    const uId = userId || getStoredUserId()
-    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    let uId = null
+    let sId = null
+    if (typeof userId === 'object' && userId !== null) {
+      uId = userId.userId || userId.user_id || getStoredUserId()
+      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_id || null
+    } else {
+      uId = userId || getStoredUserId()
+      sId = saleOrderId || null
+    }
+
+    const params = new URLSearchParams()
+    if (sId) params.append('sale_order_id', sId)
+    else if (uId) params.append('user_id', uId)
+
+    const query = params.toString() ? `?${params.toString()}` : ''
     const res = await fetch(`${NODE_API}/api/customer/invoices/${invoiceId}${query}`)
     const json = await res.json()
     return json
@@ -2013,10 +2046,30 @@ export async function getInvoiceDetailsApi(invoiceId, userId = null) {
 /**
  * Download Invoice PDF by invoice ID
  */
-export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFilename = null) {
+export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFilename = null, saleOrderId = null) {
   try {
-    const uId = userId || getStoredUserId()
-    const query = uId ? `?user_id=${encodeURIComponent(uId)}` : ''
+    let uId = null
+    let sId = null
+    let filename = defaultFilename
+
+    if (typeof userId === 'object' && userId !== null) {
+      uId = userId.userId || userId.user_id || getStoredUserId()
+      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_id || null
+    } else {
+      uId = userId || getStoredUserId()
+      sId = saleOrderId || null
+    }
+
+    if (typeof defaultFilename === 'object' && defaultFilename !== null) {
+      sId = sId || defaultFilename.saleOrderId || defaultFilename.sale_order_id
+      filename = defaultFilename.filename || null
+    }
+
+    const params = new URLSearchParams()
+    if (sId) params.append('sale_order_id', sId)
+    else if (uId) params.append('user_id', uId)
+
+    const query = params.toString() ? `?${params.toString()}` : ''
     const res = await fetch(`${NODE_API}/api/customer/invoices/${invoiceId}/download${query}`)
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}))
@@ -2026,7 +2079,7 @@ export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFil
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = defaultFilename || `BESPOKE_INVOICE_${invoiceId}.pdf`
+    a.download = filename || `BESPOKE_INVOICE_${invoiceId}.pdf`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -2041,11 +2094,20 @@ export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFil
 /**
  * Download Invoice PDF by Order ID
  */
-export async function downloadOrderInvoicePdfApi(orderId, sellerId = null, userId = null, defaultFilename = null) {
+export async function downloadOrderInvoicePdfApi(orderId, sellerId = null, userId = null, defaultFilename = null, saleOrderId = null) {
   try {
-    const uId = userId || getStoredUserId()
+    let uId = null
+    let sId = saleOrderId || null
+    if (typeof userId === 'object' && userId !== null) {
+      uId = userId.userId || userId.user_id || getStoredUserId()
+      sId = userId.saleOrderId || userId.sale_order_id || sId
+    } else {
+      uId = userId || getStoredUserId()
+    }
+
     const params = new URLSearchParams()
-    if (uId) params.append('user_id', uId)
+    if (sId) params.append('sale_order_id', sId)
+    else if (uId) params.append('user_id', uId)
     if (sellerId) params.append('seller_id', sellerId)
 
     const queryStr = params.toString() ? `?${params.toString()}` : ''

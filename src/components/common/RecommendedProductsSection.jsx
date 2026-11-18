@@ -143,10 +143,10 @@ export default function RecommendedProductsSection({
         <div className="flex items-center justify-between mb-5">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#24212A] tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-semibold text-[#24212A] tracking-normal">
                 You May <span className="text-[#C00078]">Also Like</span>
               </h2>
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider py-0.5 px-2 rounded-full bg-[#FFF1F8] text-[#C00078] border border-[#F8D4E8]">
+              <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider py-0.5 px-2 rounded-full bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC]">
                 <Sparkles className="w-2.5 h-2.5" />
                 <span>Curated</span>
               </span>
@@ -196,9 +196,16 @@ export default function RecommendedProductsSection({
           {recommendations.map((item) => {
             const prodId = item.id || item.product_id
             const isWishlisted = wishlistIds.some((id) => String(id) === String(prodId))
-            const isInCart = cartItems.some(
-              (ci) => String(ci.product_id || ci.id || ci.product?.id) === String(prodId)
-            )
+            const targetMatId = item.material_id || item.variant_id || item.selectedMaterialId || null
+            const isInCart = cartItems.some((ci) => {
+              const sameProd = String(ci.product_id || ci.id || ci.product?.id) === String(prodId)
+              if (!sameProd) return false
+              if (targetMatId) {
+                const itemMatId = ci.material_id || ci.materialId || null
+                if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+              }
+              return true
+            })
 
             const price = parseFloat(item.offer_price || item.selling_price || item.price || 499)
             const originalPrice = parseFloat(item.actual_price || item.original_price || item.originalPrice || 0)
@@ -330,23 +337,23 @@ export default function RecommendedProductsSection({
                     </div>
 
                     {/* Product Name */}
-                    <h3 className="text-xs sm:text-[13px] font-bold text-[#24212A] line-clamp-1 group-hover:text-[#C00078] transition-colors leading-snug mb-1">
+                    <h3 className="text-[14px] font-medium text-[#24212A] line-clamp-1 group-hover:text-[#C00078] transition-colors leading-snug mb-1">
                       {item.product_name || item.title}
                     </h3>
 
                     {/* Category / Subcategory Info */}
-                    <p className="text-[10px] text-neutral-400 truncate mb-2">
+                    <p className="text-[11px] text-[#77717C] truncate mb-2">
                       {item.subcategory_name || item.subcategory || item.category_name || item.category}
                     </p>
                   </div>
 
                   {/* Pricing Info */}
                   <div className="flex items-baseline gap-1.5 flex-wrap pt-1 border-t border-neutral-100">
-                    <span className="text-xs sm:text-sm font-black text-[#24212A]">
+                    <span className="text-base font-bold text-[#24212A] tabular-nums">
                       ₹{price.toLocaleString('en-IN')}
                     </span>
                     {originalPrice > price && (
-                      <span className="text-[10px] sm:text-[11px] text-neutral-400 line-through">
+                      <span className="text-xs text-neutral-400 line-through tabular-nums">
                         ₹{originalPrice.toLocaleString('en-IN')}
                       </span>
                     )}

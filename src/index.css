@@ -1,19 +1,28 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Plus Jakarta Sans", sans-serif;
+  --font-cursive: "Dancing Script", cursive;
+}
+
 :root {
-  /* Bespoke Flutter Design System Tokens */
-  --theme-primary: #d6007a;          /* Main interactive elements & primary buttons */
-  --theme-primary-hover: #b80069;    /* Deepened active magenta */
-  --theme-primary-light: #ffe3f1;    /* Soft tint for badges, chips, selected items */
+  /* Bespoke Luxury Design System Tokens */
+  --theme-primary: #C00078;          /* Main interactive elements & primary magenta */
+  --theme-primary-hover: #A00064;    /* Deepened active magenta */
+  --theme-primary-light: #FFF5FA;    /* Soft blush tint for badges, chips, selected items */
   --theme-secondary: #9e1478;        /* Deep magenta accent & luxury headers */
   --theme-secondary-hover: #831063;  /* Dark royal plum */
   --theme-accent: #00b8bd;           /* High-contrast secondary CTA & highlights */
   --theme-accent-amber: #ff9e00;     /* Warm indicator / warning */
   --theme-success: #00a859;          /* Success state indicator */
-  --theme-bg: #faf7f9;               /* Main app background */
-  --theme-bg-subtle: #f3edf1;        /* Grouped section divider tint */
-  --theme-text-primary: #1e141b;     /* Main readable body & headings */
-  --theme-text-secondary: #756872;   /* Subtitles, captions, disabled text */
+  --theme-bg: #FFF5FA;               /* Soft blush background */
+  --theme-bg-subtle: #fbf5f9;        /* Grouped section divider tint */
+  --theme-text-primary: #24212A;     /* Main readable body & headings */
+  --theme-text-secondary: #77717C;   /* Subtitles, captions, disabled text */
+  --theme-border: #F0E5EC;
+  --theme-border-subtle: #F0E5EC;
 
   /* Luxury Dark Atelier Canvas */
   --theme-dark: #0c0c10;
@@ -21,36 +30,162 @@
   --theme-dark-border: rgba(255, 255, 255, 0.08);
 
   /* Bespoke Gradient Hierarchy */
-  --theme-gradient: linear-gradient(135deg, #d6007a 0%, #9e1478 100%);
-  --theme-gradient-hover: linear-gradient(135deg, #b80069 0%, #831063 100%);
-  --theme-gradient-subtle: linear-gradient(135deg, rgba(214, 0, 122, 0.05) 0%, rgba(158, 20, 120, 0.05) 100%);
-  --theme-gradient-border: linear-gradient(135deg, rgba(214, 0, 122, 0.35) 0%, rgba(158, 20, 120, 0.35) 100%);
+  --theme-gradient: linear-gradient(135deg, #C00078 0%, #9e1478 100%);
+  --theme-gradient-hover: linear-gradient(135deg, #A00064 0%, #831063 100%);
+  --theme-gradient-subtle: linear-gradient(135deg, rgba(192, 0, 120, 0.05) 0%, rgba(158, 20, 120, 0.05) 100%);
+  --theme-gradient-border: linear-gradient(135deg, rgba(192, 0, 120, 0.35) 0%, rgba(158, 20, 120, 0.35) 100%);
   --theme-gradient-dark: linear-gradient(180deg, #16161f 0%, #0c0c10 100%);
 
   /* Luxury Glows & Shadows */
-  --theme-glow: 0 8px 24px -4px rgba(214, 0, 122, 0.28);
-  --theme-glow-sm: 0 4px 14px -2px rgba(214, 0, 122, 0.2);
+  --theme-glow: 0 8px 24px -4px rgba(192, 0, 120, 0.28);
+  --theme-glow-sm: 0 4px 14px -2px rgba(192, 0, 120, 0.2);
   --theme-glow-secondary: 0 8px 24px -4px rgba(158, 20, 120, 0.28);
 }
 
 @layer base {
+  *, ::before, ::after {
+    border-color: #F0E5EC;
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-family: var(--font-sans);
   }
 
   body {
     overflow-x: hidden;
-    color: #1a1a1e;
+    color: #24212A;
     background-color: #ffffff;
+    font-family: var(--font-sans);
+    letter-spacing: normal;
   }
 
-  /* Selection color matching Bespoke fuchsia */
-  ::selection {
-    background-color: #fce7f3;
-    color: #9d174d;
+  /* Natural letter spacing across headings; slightly tighter tracking only for large display & hero titles */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    letter-spacing: normal;
+    color: inherit;
   }
+
+  /* Large display & hero headings (36px+) have subtle tighter tracking */
+  .font-hero, h1.hero-title, .tracking-hero {
+    letter-spacing: -0.015em;
+  }
+
+  /* Ensure all interactive controls and inputs inherit the primary typography */
+  button, input, optgroup, select, textarea {
+    font-family: inherit;
+  }
+
+  /* Selection color matching Bespoke soft blush & primary magenta */
+  ::selection {
+    background-color: #F8D4E8;
+    color: #C00078;
+  }
+}
+
+/* Tabular numerals for prices and numerical information */
+.tabular-nums, [data-price], .price-tag {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ==========================================================================
+   Bespoke Unified Typography Hierarchy (Plus Jakarta Sans)
+   ========================================================================== */
+/* Hero headings: 36–42px, weight 700 */
+.type-hero {
+  font-family: var(--font-sans);
+  font-size: clamp(2.25rem, 4vw, 2.625rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+/* Page headings: 26–30px, weight 600 */
+.type-page-heading {
+  font-family: var(--font-sans);
+  font-size: clamp(1.625rem, 2.5vw, 1.875rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: normal;
+}
+
+/* Section headings: 22–24px, weight 600 */
+.type-section-heading {
+  font-family: var(--font-sans);
+  font-size: clamp(1.375rem, 2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+
+/* Product names: 14–15px, weight 500 */
+.type-product-name {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: normal;
+}
+
+/* Product prices: 16–18px, weight 700 */
+.type-product-price {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Navigation: 13–14px, weight 500 */
+.type-nav {
+  font-family: var(--font-sans);
+  font-size: 0.84375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+/* Body text: 13–14px, weight 400 */
+.type-body {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+}
+
+/* Secondary text: 12px, weight 400 */
+.type-secondary {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #77717C;
+  letter-spacing: normal;
+}
+
+/* Badges: 10–11px, weight 600 */
+.type-badge {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+/* Buttons: 13–14px, weight 600 */
+.type-button {
+  font-family: var(--font-sans);
+  font-size: 0.84375rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: normal;
 }
 
 /* Global Reusable Theme Utilities */
@@ -97,18 +232,20 @@
 }
 
 .border-theme-subtle {
-  border-color: rgba(216, 27, 96, 0.22);
+  border-color: #F0E5EC;
 }
 
 .border-theme-gradient {
   border-image: var(--theme-gradient) 1;
 }
 
-/* Interactive Brand Buttons */
+/* Interactive Brand Buttons (Typography hierarchy: 13–14px, weight 600) */
 .btn-theme {
   background: var(--theme-gradient);
   color: #ffffff;
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.84375rem; /* ~13.5px */
   border-radius: 0.75rem;
   box-shadow: var(--theme-glow-sm);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -132,7 +269,9 @@
   background: transparent;
   color: var(--theme-primary);
   border: 1.5px solid var(--theme-primary);
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.84375rem; /* ~13.5px */
   border-radius: 0.75rem;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
@@ -149,30 +288,30 @@
   transform: translateY(-1.5px);
 }
 
-/* Badges */
+/* Badges (Typography hierarchy: 10–11px, weight 600) */
 .badge-theme {
   background: var(--theme-gradient);
   color: #ffffff;
-  font-weight: 800;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.6875rem; /* ~11px */
+  letter-spacing: 0.02em;
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
-  box-shadow: 0 2px 8px rgba(216, 27, 96, 0.25);
+  box-shadow: 0 2px 8px rgba(192, 0, 120, 0.22);
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
 
 .badge-theme-subtle {
-  background: var(--theme-accent-light);
+  background: #FFF5FA;
   color: var(--theme-primary);
-  border: 1px solid rgba(216, 27, 96, 0.25);
-  font-weight: 700;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  border: 1px solid #F0E5EC;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.6875rem; /* ~11px */
+  letter-spacing: 0.02em;
   padding: 0.2rem 0.55rem;
   border-radius: 9999px;
   display: inline-flex;
@@ -183,16 +322,16 @@
 /* Luxury Cards */
 .card-luxury {
   background: #ffffff;
-  border: 1px solid #f1f1f5;
+  border: 1px solid #F0E5EC;
   border-radius: 1rem;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 20px -2px rgba(36, 33, 42, 0.04);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .card-luxury:hover {
-  border-color: rgba(216, 27, 96, 0.3);
-  box-shadow: 0 12px 30px -4px rgba(216, 27, 96, 0.12);
-  transform: translateY(-3px);
+  border-color: rgba(192, 0, 120, 0.28);
+  box-shadow: 0 10px 28px -4px rgba(192, 0, 120, 0.1);
+  transform: translateY(-2px);
 }
 
 /* Dark Atelier Card for Haute Couture & Top Designers */

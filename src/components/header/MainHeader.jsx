@@ -110,7 +110,7 @@ export default function MainHeader({
               <div className="relative">
                 <Heart className="w-5 h-5 group-hover:scale-105 transition-transform" />
                 {wishlistCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-theme-gradient text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs">
+                  <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-[#C00078] text-white text-[10px] font-semibold rounded-full flex items-center justify-center shadow-xs">
                     {wishlistCount}
                   </span>
                 )}
@@ -130,7 +130,7 @@ export default function MainHeader({
               <div className="relative">
                 <ShoppingBag className="w-5 h-5 group-hover:scale-105 transition-transform" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-theme-gradient text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs animate-in zoom-in-75">
+                  <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 bg-[#C00078] text-white text-[10px] font-semibold rounded-full flex items-center justify-center shadow-xs animate-in zoom-in-75">
                     {cartCount}
                   </span>
                 )}

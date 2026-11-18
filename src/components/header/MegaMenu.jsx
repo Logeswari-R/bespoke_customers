@@ -74,7 +74,7 @@ export default function MegaMenu({
         {/* Dropdown Top Bar */}
         <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-neutral-100">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-neutral-900">
+            <span className="text-[13px] font-semibold text-[#24212A]">
               {category.name}
             </span>
             {category.badge && (

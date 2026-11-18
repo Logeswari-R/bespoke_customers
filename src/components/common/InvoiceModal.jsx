@@ -24,6 +24,7 @@ export default function InvoiceModal({
   onClose,
   invoice: initialInvoice = null,
   orderId = null,
+  saleOrderId = null,
   currentUser = null,
 }) {
   const [invoice, setInvoice] = useState(initialInvoice)
@@ -45,7 +46,7 @@ export default function InvoiceModal({
       return
     }
 
-    if (!orderId) {
+    if (!orderId && !saleOrderId) {
       setErrorMsg('No order selected for invoice generation.')
       setIsLoading(false)
       return
@@ -58,7 +59,7 @@ export default function InvoiceModal({
     async function loadInvoice() {
       try {
         const userId = currentUser?.id || currentUser?.user_id
-        const res = await getOrderInvoicesApi(orderId, userId)
+        const res = await getOrderInvoicesApi(orderId || saleOrderId, { userId, saleOrderId })
 
         if (!isMounted) return
 
@@ -94,7 +95,7 @@ export default function InvoiceModal({
     try {
       const userId = currentUser?.id || currentUser?.user_id
       const sanitizedNum = (invoice.invoice_number || `INV_${invoice.id}`).replace(/[^a-zA-Z0-9_-]/g, '_')
-      await downloadInvoicePdfApi(invoice.id, userId, `BESPOKE_INV_${sanitizedNum}.pdf`)
+      await downloadInvoicePdfApi(invoice.id, { userId, saleOrderId }, `BESPOKE_INV_${sanitizedNum}.pdf`)
     } catch (err) {
       alert(err.message || 'Failed to download invoice PDF.')
     } finally {
@@ -159,7 +160,7 @@ export default function InvoiceModal({
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-xs sm:text-sm font-black text-neutral-900 tracking-tight flex items-center gap-2">
+              <h2 className="text-[13px] sm:text-[14px] font-semibold text-[#24212A] flex items-center gap-2">
                 <span>Tax Invoice Preview</span>
                 {invoice?.invoice_number && (
                   <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
@@ -271,10 +272,10 @@ export default function InvoiceModal({
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl sm:text-2xl font-black tracking-tight text-[#C00078]">
+                    <span className="text-[20px] sm:text-[22px] font-bold text-[#C00078]">
                       BESPOKE
                     </span>
-                    <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest pl-2 border-l border-neutral-200">
+                    <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest pl-2 border-l border-neutral-200">
                       Atelier
                     </span>
                   </div>
@@ -284,7 +285,7 @@ export default function InvoiceModal({
                 </div>
 
                 <div className="sm:text-right">
-                  <span className="inline-block px-3 py-1 bg-pink-50 text-[#C00078] border border-pink-200 rounded-lg text-xs font-black uppercase tracking-wider">
+                  <span className="inline-block px-3 py-1 bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC] rounded-lg text-[11px] font-semibold tracking-wide">
                     {invoice.document_title || (invoice.seller_gstin_snapshot ? 'TAX INVOICE' : 'BILL OF SUPPLY')}
                   </span>
                   <div className="text-[11px] text-neutral-500 font-medium mt-1">
@@ -513,65 +514,118 @@ export default function InvoiceModal({
                   </div>
                 </div>
 
-                {/* Right Column: Mathematical Price Breakdown */}
-                <div className="p-3.5 rounded-xl border border-neutral-200/80 bg-white text-xs space-y-1.5 shadow-2xs">
-                  <div className="flex justify-between text-neutral-600">
-                    <span>Items Subtotal:</span>
-                    <span className="font-medium text-neutral-900">₹{Number(invoice.subtotal || 0).toFixed(2)}</span>
-                  </div>
+                {/* Right Column: Invoice to Client Breakdown */}
+                {(() => {
+                  const cb = invoice.client_breakdown || {}
+                  const basicPrice = Number(cb.basic_price ?? invoice.subtotal ?? 0)
+                  const discountAmount = Number(cb.discount_amount ?? (Number(invoice.discount_amount || 0) + Number(invoice.coupon_discount || 0)))
+                  const taxableAmount = Number(cb.taxable_amount ?? invoice.taxable_amount ?? 0)
+                  const cgst = Number(invoice.cgst_amount || 0)
+                  const sgst = Number(invoice.sgst_amount || 0)
+                  const igst = Number(invoice.igst_amount || 0)
+                  const productGst = Number(cb.product_gst ?? (cgst + sgst + igst))
+                  const productGstRate = Number(cb.product_gst_rate ?? (taxableAmount > 0 ? Math.round((productGst / taxableAmount) * 100) : 18))
+                  const productTotal = Number(cb.product_total ?? (taxableAmount + productGst))
 
-                  {Number(invoice.discount_amount || 0) > 0 && (
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Item Discounts:</span>
-                      <span>-₹{Number(invoice.discount_amount).toFixed(2)}</span>
+                  let pndBase = Number(cb.packing_delivery_charges ?? invoice.shipping_amount ?? 0)
+                  let pndGst = Number(cb.gst_on_pnd ?? invoice.shipping_tax_amount ?? 0)
+                  if (pndGst === 0 && pndBase > 0) {
+                    const b = Number((pndBase / 1.18).toFixed(2))
+                    pndGst = Number((pndBase - b).toFixed(2))
+                    pndBase = b
+                  }
+
+                  const discountPct = Number(cb.discount_percentage ?? (basicPrice > 0 ? Math.round((discountAmount / basicPrice) * 100) : 0))
+                  const pndGstRate = Number(cb.pnd_gst_rate ?? 18)
+                  const finalPayable = Number(cb.final_payable ?? invoice.grand_total ?? (productTotal + pndBase + pndGst))
+
+                  return (
+                    <div className="p-4 rounded-2xl border border-neutral-200/90 bg-white text-xs space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
+                        <span className="text-[11px] font-bold text-neutral-900 uppercase tracking-wider">
+                          Invoice to Client
+                        </span>
+                        <span className="text-[10px] text-neutral-400 font-medium">All figures in INR (₹)</span>
+                      </div>
+
+                      {/* 1. Basic Price */}
+                      <div className="flex justify-between text-neutral-700">
+                        <span className="font-medium">Basic Price</span>
+                        <span className="font-semibold text-neutral-900 tabular-nums">
+                          ₹{basicPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 2. Discount */}
+                      {discountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-600">
+                          <div className="flex items-center gap-1">
+                            <span>Discount</span>
+                            {discountPct > 0 && <span className="font-semibold">(-{discountPct}%)</span>}
+                          </div>
+                          <span className="font-semibold tabular-nums">
+                            -₹{discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 3. GST on Product */}
+                      <div className="flex justify-between text-neutral-700">
+                        <div className="flex items-center gap-1">
+                          <span>GST {productGstRate}%</span>
+                          {cgst > 0 && sgst > 0 && (
+                            <span className="text-[10px] text-neutral-400">
+                              (CGST ₹{cgst.toFixed(2)} + SGST ₹{sgst.toFixed(2)})
+                            </span>
+                          )}
+                          {igst > 0 && (
+                            <span className="text-[10px] text-neutral-400">
+                              (IGST)
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-semibold text-neutral-900 tabular-nums">
+                          ₹{productGst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 4. Total (Product Total) */}
+                      <div className="flex justify-between font-bold text-neutral-800 pt-1.5 border-t border-neutral-100">
+                        <span>Total</span>
+                        <span className="tabular-nums">
+                          ₹{productTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 5. Packing and Delivery charges */}
+                      <div className="flex justify-between text-neutral-700 pt-1">
+                        <span>Packing and Delivery charges</span>
+                        <span className="font-semibold text-neutral-900 tabular-nums">
+                          ₹{pndBase.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 6. GST on P&D */}
+                      <div className="flex justify-between text-neutral-700">
+                        <span>GST on P&D {pndGstRate}%</span>
+                        <span className="font-semibold text-neutral-900 tabular-nums">
+                          ₹{pndGst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 7. Final Payable */}
+                      <div className="flex justify-between items-baseline pt-2.5 border-t-2 border-neutral-200 mt-2">
+                        <div>
+                          <span className="text-[13px] font-bold text-[#24212A]">Final payable</span>
+                          <p className="text-[10px] text-neutral-400 font-normal">Inclusive of all taxes & delivery</p>
+                        </div>
+                        <span className="text-[18px] font-extrabold text-[#C00078] tabular-nums">
+                          ₹{finalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
                     </div>
-                  )}
-
-                  {Number(invoice.coupon_discount || 0) > 0 && (
-                    <div className="flex justify-between text-emerald-600">
-                      <span>Coupon Discount:</span>
-                      <span>-₹{Number(invoice.coupon_discount).toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between font-bold text-neutral-800 pt-1 border-t border-neutral-100">
-                    <span>Net Taxable Value:</span>
-                    <span>₹{Number(invoice.taxable_amount || 0).toFixed(2)}</span>
-                  </div>
-
-                  {Number(invoice.cgst_amount || 0) > 0 && (
-                    <div className="flex justify-between text-neutral-600 text-[11px]">
-                      <span>CGST (Central Tax):</span>
-                      <span>₹{Number(invoice.cgst_amount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {Number(invoice.sgst_amount || 0) > 0 && (
-                    <div className="flex justify-between text-neutral-600 text-[11px]">
-                      <span>SGST (State Tax):</span>
-                      <span>₹{Number(invoice.sgst_amount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {Number(invoice.igst_amount || 0) > 0 && (
-                    <div className="flex justify-between text-neutral-600 text-[11px]">
-                      <span>IGST (Integrated Tax):</span>
-                      <span>₹{Number(invoice.igst_amount).toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between text-neutral-600">
-                    <span>Delivery & Shipping:</span>
-                    <span className="text-neutral-900 font-medium">
-                      {Number(invoice.shipping_amount || 0) > 0 ? `₹${Number(invoice.shipping_amount).toFixed(2)}` : 'FREE'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2.5 border-t border-neutral-200 mt-2">
-                    <span className="text-xs font-black uppercase text-neutral-900">Grand Total</span>
-                    <span className="text-base font-black text-[#C00078]">
-                      ₹{Number(invoice.grand_total || 0).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+                  )
+                })()}
               </div>
 
               {/* Bottom Footer */}

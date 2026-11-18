@@ -730,7 +730,7 @@ export default function OrderTrackingPage({
               {order?.refund ? (
                 <div className="text-xs text-rose-800 pl-7 space-y-1">
                   <p>
-                    Refund of <strong className="font-black text-rose-950">₹{order.refund.amount}</strong> has been {order.refund.refund_status || 'settled'}.
+                    Refund of <strong className="font-bold text-rose-950">₹{order.refund.amount}</strong> has been {order.refund.refund_status || 'settled'}.
                   </p>
                   <p className="text-[11px] text-rose-600">
                     Razorpay Reference ID:{' '}
@@ -1139,7 +1139,7 @@ export default function OrderTrackingPage({
                         </div>
                         <div>
                           <span className="text-neutral-400 block text-[9px] uppercase font-bold">Total Amount</span>
-                          <span className="font-black text-[#C00078]">₹{Number(inv.grand_total || 0).toFixed(2)}</span>
+                          <span className="font-bold text-[#C00078] tabular-nums">₹{Number(inv.grand_total || 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1370,7 +1370,7 @@ export default function OrderTrackingPage({
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="space-y-0.5">
                             <span
-                              className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md inline-flex items-center gap-1 ${
+                              className={`text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-md inline-flex items-center gap-1 ${
                                 isReturnedProduct
                                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                                   : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
@@ -1379,7 +1379,7 @@ export default function OrderTrackingPage({
                               <Sparkles className="w-2.5 h-2.5" />
                               {isReturnedProduct ? 'Returned Product Feedback' : 'Delivered Product Review'}
                             </span>
-                            <h4 className="text-xs font-bold text-neutral-900">
+                            <h4 className="text-xs font-semibold text-neutral-900">
                               {isReturnedProduct
                                 ? 'How was your experience with this returned garment?'
                                 : 'Rate your bespoke fitting & fabric quality'}
@@ -1432,7 +1432,7 @@ export default function OrderTrackingPage({
                                 />
                               ))}
                             </div>
-                            <span className={`text-xs font-black ${starInfo.textClass}`}>
+                            <span className={`text-xs font-semibold ${starInfo.textClass}`}>
                               {score}.0 out of 5 Stars
                             </span>
                           </div>
@@ -1526,7 +1526,7 @@ export default function OrderTrackingPage({
                   </div>
                   <div className="text-right">
                     <span className="text-neutral-500 mr-2">Total Amount:</span>
-                    <span className="text-base font-black text-[var(--theme-primary)]">
+                    <span className="text-base font-bold text-[#C00078] tabular-nums">
                       ₹{resolvedTotal}
                     </span>
                   </div>

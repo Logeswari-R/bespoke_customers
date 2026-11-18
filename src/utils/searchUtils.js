@@ -64,10 +64,13 @@ export function getProductFabrics(product) {
       if (f) list.push(String(f))
     })
   }
+  if (product.material_name && isKnownFabric(product.material_name)) list.push(String(product.material_name))
+  if (product.variant_name && isKnownFabric(product.variant_name)) list.push(String(product.variant_name))
   if (Array.isArray(product.materials)) {
     product.materials.forEach((m) => {
       if (m?.fabric) list.push(String(m.fabric))
       if (m?.name && isKnownFabric(m.name)) list.push(String(m.name))
+      if (m?.material_name && isKnownFabric(m.material_name)) list.push(String(m.material_name))
     })
   }
   return Array.from(new Set(list.map((s) => s.trim()))).filter(Boolean)
@@ -85,9 +88,17 @@ export function getProductColors(product) {
       if (c) list.push(String(c))
     })
   }
+  if (product.material_name && isKnownColor(product.material_name)) list.push(String(product.material_name))
+  if (product.variant_name && isKnownColor(product.variant_name)) list.push(String(product.variant_name))
   if (Array.isArray(product.materials)) {
     product.materials.forEach((m) => {
       if (m?.color) list.push(String(m.color))
+      if (m?.material_name) {
+        if (isKnownColor(m.material_name)) list.push(String(m.material_name))
+        else if (isNaN(m.material_name) && !['test', 'ready', 'both', 'sdac'].includes(String(m.material_name).toLowerCase())) {
+          list.push(String(m.material_name))
+        }
+      }
       if (m?.name && isKnownColor(m.name)) list.push(String(m.name))
     })
   }

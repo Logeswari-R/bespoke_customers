@@ -121,10 +121,10 @@ export default function ShopsListingPage({
                   )}
 
                   <div className="absolute bottom-3 left-3 right-3 text-white">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-pink-300">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-pink-300 drop-shadow-xs">
                       Bespoke Boutique
                     </span>
-                    <h3 className="text-base font-bold drop-shadow-sm group-hover:text-pink-200 transition-colors">
+                    <h3 className="text-base font-bold text-white drop-shadow-sm group-hover:text-pink-200 transition-colors">
                       {shop.title || shop.shop_name}
                     </h3>
                   </div>

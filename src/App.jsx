@@ -215,23 +215,30 @@ export default function App() {
 
     const handleNotification = (notif) => {
       console.log('🔔 [Global App] Real-time notification received:', notif)
+      if (viewStateRef.current?.type === 'chats') {
+        // Customer is actively inside chat window viewing messages
+        if (targetUserId) {
+          markAllNotificationsReadApi({ recipientType: 'user', recipientId: targetUserId }).catch(() => {})
+        }
+        setUnreadNotificationsCount(0)
+        return
+      }
+
       // Authoritatively update count from MySQL database
       refreshUnread()
 
-      if (viewStateRef.current?.type !== 'chats') {
-        const toastMsg = notif?.message || notif?.title || 'New reply received from support'
-        const now = Date.now()
-        if (toastMsg === lastToastTextRef.current && (now - lastToastTimeRef.current) < 4000) {
-          return
-        }
-        lastToastTextRef.current = toastMsg
-        lastToastTimeRef.current = now
-
-        setIncomingSupportToast({
-          title: notif?.title || 'Bespoke Concierge Support',
-          message: notif?.message || 'New reply received from support',
-        })
+      const toastMsg = notif?.message || notif?.title || 'New reply received from support'
+      const now = Date.now()
+      if (toastMsg === lastToastTextRef.current && (now - lastToastTimeRef.current) < 4000) {
+        return
       }
+      lastToastTextRef.current = toastMsg
+      lastToastTimeRef.current = now
+
+      setIncomingSupportToast({
+        title: notif?.title || 'Bespoke Concierge Support',
+        message: notif?.message || 'New reply received from support',
+      })
     }
 
     const handleMessage = (data) => {
@@ -242,24 +249,39 @@ export default function App() {
 
       if (isAdmin) {
         console.log('📨 [Global App] Admin chat reply received:', data)
+        if (viewStateRef.current?.type === 'chats') {
+          // Customer is actively reading chat: auto-mark read and keep count 0
+          if (targetUserId) {
+            markAllNotificationsReadApi({ recipientType: 'user', recipientId: targetUserId }).catch(() => {})
+          }
+          setUnreadNotificationsCount(0)
+          return
+        }
+
         // Authoritatively update count from MySQL database
         refreshUnread()
 
-        if (viewStateRef.current?.type !== 'chats') {
-          const rawText = String(data.message || data.text || 'New message from support')
-          const toastMsg = `Admin: "${rawText}"`
-          const now = Date.now()
-          if (rawText === lastToastTextRef.current && (now - lastToastTimeRef.current) < 4000) {
-            return
-          }
-          lastToastTextRef.current = rawText
-          lastToastTimeRef.current = now
-
-          setIncomingSupportToast({
-            title: 'Bespoke Concierge Support',
-            message: toastMsg,
-          })
+        const rawText = String(data.message || data.text || 'New message from support')
+        const toastMsg = `Admin: "${rawText}"`
+        const now = Date.now()
+        if (rawText === lastToastTextRef.current && (now - lastToastTimeRef.current) < 4000) {
+          return
         }
+        lastToastTextRef.current = rawText
+        lastToastTimeRef.current = now
+
+        setIncomingSupportToast({
+          title: 'Bespoke Concierge Support',
+          message: toastMsg,
+        })
+      }
+    }
+
+    const handleUnreadUpdate = (data) => {
+      if (data && typeof data.unread_count === 'number') {
+        setUnreadNotificationsCount(data.unread_count)
+      } else {
+        refreshUnread()
       }
     }
 
@@ -267,12 +289,14 @@ export default function App() {
     socket.on('support_notification:new', handleNotification)
     socket.on('receive_ticket_message', handleMessage)
     socket.on('receive_message', handleMessage)
+    socket.on('unread_count:update', handleUnreadUpdate)
 
     return () => {
       socket.off('notification:new', handleNotification)
       socket.off('support_notification:new', handleNotification)
       socket.off('receive_ticket_message', handleMessage)
       socket.off('receive_message', handleMessage)
+      socket.off('unread_count:update', handleUnreadUpdate)
       socket.disconnect()
     }
   }, [targetUserId, refreshUnread])
@@ -874,8 +898,8 @@ export default function App() {
           quantity: Number(quantity || product.quantity || 1),
           addons: product.addons || [],
           alteration: product.alteration || false,
-          materialId: product.materialId || null,
-          material: product.material || null,
+          materialId: product.materialId || product.material_id || product.variant_id || product.selectedMaterialId || null,
+          material: product.material || product.material_name || null,
           product,
           pageUrl: window.location.href,
         },
@@ -891,6 +915,7 @@ export default function App() {
     const vendorId = product.vendor_id || product.vendorId || null
     const unitPrice = Number(product.discount_price || product.price || product.actual_price || 499)
     const uniqueId = Date.now() + Math.floor(Math.random() * 1000)
+    const resolvedMaterialId = product.materialId || product.material_id || product.variant_id || product.selectedMaterialId || null
 
     const rawImg =
       product.image ||
@@ -933,13 +958,27 @@ export default function App() {
       order_type: isCustom ? 'Customizable' : 'Ready Made',
       measurements: product.measurements || product.custom_measurements || [],
       custom_measurements: product.custom_measurements || product.measurements || null,
+      material_id: resolvedMaterialId,
+      materialId: resolvedMaterialId,
+      material: product.material || product.material_name || null,
+      color: product.color || product.variant_name || product.material_name || null,
       measurement_summary: product.measurement_summary || null,
       measurment_details: product.measurment_details || product.measurements || [],
+      gst_id: product.gst_id ? Number(product.gst_id) : null,
+      gst_name: product.gst_name || null,
+      gst_rate: product.gst_rate || null,
+      gst_percentage: Number(product.gst_percentage || 0),
     }
 
     setCartItems((prev) => {
       const idx = prev.findIndex(
-        (i) => Number(i.product_id || i.id) === productId && i.size === finalSize
+        (i) =>
+          Number(i.product_id || i.id) === productId &&
+          i.size === finalSize &&
+          (priceId ? Number(i.price_id || i.priceId) === Number(priceId) : true) &&
+          (resolvedMaterialId
+            ? String(i.material_id || i.materialId || '') === String(resolvedMaterialId)
+            : true)
       )
       if (idx > -1) {
         const nextCart = [...prev]
@@ -962,6 +1001,7 @@ export default function App() {
         userId,
         productId,
         priceId,
+        materialId: resolvedMaterialId,
         quantity: finalQty,
         size: finalSize,
         vendorId,
@@ -1012,9 +1052,27 @@ export default function App() {
     }
 
     const prodId = Number(product.product_id || product.id)
-    const exists = cartItems.some((i) => Number(i.product_id || i.product?.id || i.id) === prodId)
+    const targetMatId =
+      product.materialId ||
+      product.material_id ||
+      product.variant_id ||
+      product.selectedMaterialId ||
+      null
+    const targetSize = product.size || null
+    const exists = cartItems.some((i) => {
+      const sameProd = Number(i.product_id || i.product?.id || i.id) === prodId
+      if (!sameProd) return false
+      if (targetMatId) {
+        const itemMatId = i.material_id || i.materialId || null
+        if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+      }
+      if (targetSize && i.size) {
+        if (String(i.size).toLowerCase() !== String(targetSize).toLowerCase()) return false
+      }
+      return true
+    })
     if (!exists) {
-      await handleAddToCart(product, 1, null, null, false)
+      await handleAddToCart(product, 1, targetSize, null, false)
     }
     handleOpenCheckout()
   }

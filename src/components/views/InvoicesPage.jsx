@@ -107,11 +107,11 @@ export default function InvoicesPage({
               </button>
             )}
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-[24px] sm:text-[28px] font-semibold text-[#24212A] tracking-normal flex items-center gap-2">
                 <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-[#C00078]" />
                 <span>My Invoices & Receipts</span>
               </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
+              <p className="text-[13px] text-[#77717C] font-normal mt-0.5">
                 Official GST tax invoices and bills of supply for your purchases
               </p>
             </div>
@@ -207,7 +207,7 @@ export default function InvoicesPage({
                               </div>
                             )}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-black text-neutral-900">
+                          <td className="py-3.5 px-4 text-right font-bold text-[#24212A] tabular-nums">
                             ₹{Number(inv.grand_total || 0).toFixed(2)}
                           </td>
                           <td className="py-3.5 px-4 text-center">

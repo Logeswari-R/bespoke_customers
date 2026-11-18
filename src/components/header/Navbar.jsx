@@ -36,14 +36,13 @@ export default function Navbar({
                   aria-haspopup="true"
                   aria-expanded={isHovered}
                   onClick={() => onCategoryClick(cat)}
-                  className={`relative px-3 py-1 text-[13px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer select-none flex items-center gap-1.5 ${
+                  className={`relative px-3 py-1 text-[13.5px] font-medium transition-all duration-200 cursor-pointer select-none flex items-center gap-1.5 ${
                     isHovered
-                      ? 'text-theme-primary'
+                      ? 'text-[#C00078]'
                       : isSelected
-                      ? 'text-theme-primary font-black'
-                      : 'text-neutral-700 hover:text-theme-primary'
+                      ? 'text-[#C00078] font-semibold'
+                      : 'text-[#24212A] hover:text-[#C00078]'
                   }`}
-                  style={{ letterSpacing: '0.06em' }}
                 >
                   <span>{cat.name}</span>
 

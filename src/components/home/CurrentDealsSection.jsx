@@ -119,8 +119,8 @@ export default function CurrentDealsSection({
             <div className="flex items-center gap-3 mb-1">
               <h2
                 onClick={onViewAll}
-                className={`text-xl sm:text-2xl font-black tracking-tight transition-opacity ${
-                  isBespoke ? 'text-white drop-shadow-xs' : 'text-neutral-900'
+                className={`text-[22px] sm:text-[24px] font-semibold tracking-normal transition-opacity ${
+                  isBespoke ? 'text-white drop-shadow-xs' : 'text-[#24212A]'
                 } ${onViewAll ? 'cursor-pointer hover:opacity-90' : ''}`}
               >
                 {isBespoke ? (
@@ -133,7 +133,7 @@ export default function CurrentDealsSection({
               </h2>
               {/* Cut-Corner Asymmetric Atelier Badge */}
               <span
-                className={`text-[10px] uppercase font-black tracking-widest px-3 py-0.5 border shadow-xs rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs ${
+                className={`text-[10px] uppercase font-semibold tracking-wider px-3 py-0.5 border shadow-xs rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs ${
                   isBespoke
                     ? 'text-white bg-white/20 backdrop-blur-md border-white/30'
                     : 'bg-[#FFF1F8] text-[#D6007A] border-[#F8D4E8]'
@@ -290,7 +290,7 @@ export default function CurrentDealsSection({
                 {/* Offer Percentage Badge with Asymmetric Cut */}
                 {discountPercent > 0 && (
                   <div className="absolute top-2.5 right-2.5 z-10 pointer-events-none">
-                    <span className="bg-white text-[#D6007A] text-[9.5px] font-black tracking-tight px-2.5 py-0.5 rounded-tl-lg rounded-br-lg rounded-tr-xs rounded-bl-xs shadow-md">
+                    <span className="bg-white text-[#C00078] text-[10px] font-semibold px-2 py-0.5 rounded-tl-lg rounded-br-lg rounded-tr-xs rounded-bl-xs shadow-xs">
                       {discountPercent}% OFF
                     </span>
                   </div>
@@ -304,20 +304,20 @@ export default function CurrentDealsSection({
                   {/* Line 1: Product Name on left, Amount on right in the same line */}
                   <div className="flex items-baseline justify-between gap-2">
                     <h3
-                      className="text-xs sm:text-sm font-bold text-white line-clamp-1 capitalize group-hover:text-pink-200 transition-colors flex-1"
+                      className="text-[14px] font-medium text-white line-clamp-1 capitalize group-hover:text-pink-200 transition-colors flex-1"
                       title={productName}
                     >
                       {productName}
                     </h3>
                     <div className="flex items-baseline gap-1 shrink-0">
-                      <span className="text-sm sm:text-base font-extrabold text-white tracking-tight">
+                      <span className="text-[16px] sm:text-[17px] font-bold text-white tabular-nums tracking-normal">
                         ₹{price}
                       </span>
-                      {originalPrice && Number(originalPrice) > Number(price) && (
-                        <span className="text-[10px] text-white/60 line-through">
+                      {Number(originalPrice) > Number(price) ? (
+                        <span className="text-[11px] text-white/60 line-through tabular-nums">
                           ₹{originalPrice}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 

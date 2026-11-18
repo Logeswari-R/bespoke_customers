@@ -504,6 +504,36 @@ export default function ProductDetailPage({
     return []
   }, [product?.measurements_table, schemaByPrice, activeSizeObj?.size])
 
+  // Extract specifications directly from product_info table (details_name and details_value)
+  const productInfoItems = useMemo(() => {
+    const raw =
+      product?.product_info ||
+      product?.productInfo ||
+      product?.specifications ||
+      product?.raw_info ||
+      []
+    if (!Array.isArray(raw)) return []
+
+    return raw
+      .filter((item) => {
+        if (!item || typeof item !== 'object') return false
+        const name = item.details_name ?? item.key ?? item.label
+        const val = item.details_value ?? item.value
+        return Boolean(
+          name &&
+            String(name).trim() &&
+            val !== undefined &&
+            val !== null &&
+            String(val).trim() !== ''
+        )
+      })
+      .map((item, idx) => ({
+        id: item.id || idx,
+        details_name: String(item.details_name ?? item.key ?? item.label).trim(),
+        details_value: String(item.details_value ?? item.value).trim(),
+      }))
+  }, [product])
+
   // Pricing calculations
   const baseDiscountPrice =
     activeSizeObj?.discountPrice ||
@@ -598,11 +628,17 @@ export default function ProductDetailPage({
   const isInCart = useMemo(() => {
     if (!cartItems || cartItems.length === 0 || !product) return false
     const currentId = Number(product.id || product.product_id)
+    const activeMatId = currentMaterial?.id || currentMaterial?.material_id || null
     return cartItems.some((item) => {
       const itemProdId = Number(item.product_id || item.product?.id || item.id)
-      return itemProdId === currentId
+      if (itemProdId !== currentId) return false
+      if (activeMatId) {
+        const itemMatId = item.material_id || item.materialId || null
+        if (itemMatId && String(itemMatId) !== String(activeMatId)) return false
+      }
+      return true
     })
-  }, [cartItems, product])
+  }, [cartItems, product, currentMaterial])
 
   const isLoadedCorrectProduct =
     product &&
@@ -702,6 +738,10 @@ export default function ProductDetailPage({
       measurements: isChosenCustomizable && customMeasurementsData?.measurements ? customMeasurementsData.measurements : [],
       custom_measurements: isChosenCustomizable && customMeasurementsData?.measurements ? customMeasurementsData.measurements : null,
       measurement_summary: isChosenCustomizable && customMeasurementsData?.summaryText ? customMeasurementsData.summaryText : null,
+      gst_id: activeSizeObj?.gst_id || product.gst_id || null,
+      gst_name: activeSizeObj?.gst_name || product.gst_name || null,
+      gst_rate: activeSizeObj?.gst_rate || product.gst_rate || null,
+      gst_percentage: activeSizeObj?.gst_percentage !== undefined ? Number(activeSizeObj.gst_percentage) : (Number(product.gst_percentage) || 0),
     }
 
     if (!currentUser) {
@@ -935,14 +975,14 @@ export default function ProductDetailPage({
           {/* Right Column: Product Actions & Specs (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col space-y-6">
             {/* Brand & Title */}
-            <div className="border-b border-neutral-200/70 pb-5">
+            <div className="border-b border-[#F0E5EC] pb-5">
               <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-widest font-black text-theme-primary flex items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-[#C00078] flex items-center gap-1.5 tracking-normal">
                   <span>{brand}</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50" />
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-neutral-100/90 text-neutral-600 font-mono font-bold px-2.5 py-0.5 rounded-full border border-neutral-200/80">
+                  <span className="text-[10px] bg-neutral-100/90 text-[#77717C] font-mono font-medium px-2.5 py-0.5 rounded-full border border-[#F0E5EC]">
                     Product #{productId || product.id}
                   </span>
                   {product.hsn_code && (
@@ -953,26 +993,26 @@ export default function ProductDetailPage({
                 </div>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 mt-2 tracking-tight leading-snug">
+              <h1 className="text-[24px] sm:text-[28px] font-semibold text-[#24212A] mt-2 tracking-normal leading-snug">
                 {title}
               </h1>
 
-              <p className="text-xs sm:text-sm text-neutral-600 mt-2 line-clamp-2 leading-relaxed">
+              <p className="text-[13px] sm:text-[14px] text-[#77717C] font-normal mt-2 line-clamp-2 leading-relaxed">
                 {description}
               </p>
 
               {/* Pricing Display */}
               <div className="mt-4 flex items-baseline gap-3 flex-wrap">
-                <span className="text-3xl sm:text-4xl font-black text-neutral-900 tracking-tight">
+                <span className="text-2xl sm:text-[28px] font-bold text-[#24212A] tabular-nums tracking-normal">
                   ₹{finalUnitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
 
                 {finalOriginalUnitPrice > finalUnitPrice && (
                   <>
-                    <span className="text-base sm:text-lg text-neutral-400 line-through font-medium">
+                    <span className="text-[14px] sm:text-[15px] text-[#77717C] line-through font-normal tabular-nums">
                       ₹{finalOriginalUnitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                    <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-pink-50 text-[var(--theme-primary)] border border-pink-200 uppercase tracking-wider">
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC] tracking-normal">
                       {discountPercent}% OFF
                     </span>
                   </>
@@ -1201,17 +1241,17 @@ export default function ProductDetailPage({
             {/* Garment Order Type: Ready Made vs Customizable */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
+                <label className="text-[12px] font-semibold text-[#24212A] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C00078]" />
                   <span>Choose Fit & Tailoring</span>
                 </label>
                 {activeProductType === 'customizable' ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--theme-primary)] bg-pink-50 px-2 py-0.5 rounded-full border border-pink-200/60 shadow-2xs">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#C00078] bg-[#FFF5FA] px-2 py-0.5 rounded-full border border-[#F0E5EC] shadow-2xs">
                     <Scissors className="w-2.5 h-2.5" />
                     <span>Made-To-Measure</span>
                   </span>
                 ) : (
-                  <span className="text-[10px] font-medium text-neutral-400">
+                  <span className="text-[10px] font-normal text-[#77717C]">
                     Select standard or bespoke
                   </span>
                 )}
@@ -1246,22 +1286,22 @@ export default function ProductDetailPage({
                         <ShoppingBag className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-xs font-black text-neutral-900 block tracking-tight">
+                        <span className="text-[13px] font-semibold text-[#24212A] block">
                           Ready Made
                         </span>
-                        <span className="text-[10px] text-neutral-500 font-medium block">
+                        <span className="text-[11px] text-[#77717C] font-normal block">
                           Standard Sizing
                         </span>
                       </div>
                     </div>
                     {activeProductType === 'ready_made' && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-[var(--theme-primary)] ring-4 ring-pink-100 animate-pulse" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#C00078] ring-4 ring-pink-100 animate-pulse" />
                     )}
                   </div>
-                  <div className="mt-2.5 pt-2 border-t border-neutral-100/80 text-[11px] text-neutral-500 flex items-center justify-between">
+                  <div className="mt-2.5 pt-2 border-t border-[#F0E5EC] text-[11px] text-[#77717C] flex items-center justify-between">
                     <span>Dispatched in 24h</span>
                     {hasReadyMade && (
-                      <span className="text-[10px] font-bold text-emerald-700">In Stock</span>
+                      <span className="text-[10px] font-semibold text-emerald-700">In Stock</span>
                     )}
                   </div>
                 </button>
@@ -1279,8 +1319,8 @@ export default function ProductDetailPage({
                     !hasCustomizable
                       ? 'border-neutral-200 bg-neutral-100/70 text-neutral-400 cursor-not-allowed opacity-50 select-none pointer-events-none'
                       : activeProductType === 'customizable'
-                      ? 'border-[var(--theme-primary)] bg-gradient-to-br from-pink-50/70 via-white to-pink-50/30 shadow-sm ring-2 ring-[var(--theme-primary)]/20 cursor-pointer'
-                      : 'border-neutral-200 bg-white hover:border-pink-300 hover:bg-neutral-50/80 cursor-pointer'
+                      ? 'border-[#C00078] bg-[#FFF5FA] shadow-xs ring-2 ring-[#C00078]/20 cursor-pointer'
+                      : 'border-[#F0E5EC] bg-white hover:border-[#C00078]/40 hover:bg-[#FFF5FA]/50 cursor-pointer'
                   }`}
                   title={
                     hasCustomizable
@@ -1295,37 +1335,37 @@ export default function ProductDetailPage({
                           !hasCustomizable
                             ? 'bg-neutral-200 text-neutral-400'
                             : activeProductType === 'customizable'
-                            ? 'bg-[var(--theme-primary)] text-white shadow-xs scale-105'
-                            : 'bg-pink-100 text-[var(--theme-primary)] group-hover:bg-pink-200'
+                            ? 'bg-[#C00078] text-white shadow-xs scale-105'
+                            : 'bg-pink-100 text-[#C00078] group-hover:bg-pink-200'
                         }`}
                       >
                         <Scissors className="w-4 h-4" />
                       </div>
                       <div>
                         <span
-                          className={`text-xs font-black block tracking-tight ${
-                            !hasCustomizable ? 'text-neutral-400' : 'text-neutral-900'
+                          className={`text-[13px] font-semibold block ${
+                            !hasCustomizable ? 'text-neutral-400' : 'text-[#24212A]'
                           }`}
                         >
                           Customizable
                         </span>
-                        <span className="text-[10px] text-neutral-500 font-medium block">
+                        <span className="text-[11px] text-[#77717C] font-normal block">
                           Atelier Fitted
                         </span>
                       </div>
                     </div>
                     {!hasCustomizable ? (
-                      <span className="text-[9px] font-bold text-neutral-400 uppercase bg-neutral-200 px-1.5 py-0.5 rounded">
+                      <span className="text-[9px] font-semibold text-neutral-400 uppercase bg-neutral-200 px-1.5 py-0.5 rounded">
                         Unavailable
                       </span>
                     ) : activeProductType === 'customizable' ? (
-                      <span className="w-2.5 h-2.5 rounded-full bg-[var(--theme-primary)] ring-4 ring-pink-100 animate-pulse" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#C00078] ring-4 ring-pink-100 animate-pulse" />
                     ) : null}
                   </div>
-                  <div className="mt-2.5 pt-2 border-t border-neutral-100/80 text-[11px] text-neutral-500 flex items-center justify-between">
+                  <div className="mt-2.5 pt-2 border-t border-[#F0E5EC] text-[11px] text-[#77717C] flex items-center justify-between">
                     <span>Tailored to You</span>
                     {hasCustomizable && (
-                      <span className="text-[10px] font-bold text-theme-primary">Made to Measure</span>
+                      <span className="text-[10px] font-semibold text-[#C00078]">Made to Measure</span>
                     )}
                   </div>
                 </button>
@@ -1333,13 +1373,13 @@ export default function ProductDetailPage({
 
               {/* Sleek banner when Customizable is selected */}
               {activeProductType === 'customizable' && (
-                <div className="bg-gradient-to-r from-pink-50 via-rose-50/40 to-pink-50 border border-pink-200/80 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs transition-all duration-300">
-                  <div className="w-8 h-8 rounded-xl bg-white shadow-xs border border-pink-200 flex items-center justify-center shrink-0 text-[var(--theme-primary)]">
+                <div className="bg-[#FFF5FA] border border-[#F0E5EC] rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs transition-all duration-300">
+                  <div className="w-8 h-8 rounded-xl bg-white shadow-xs border border-[#F0E5EC] flex items-center justify-center shrink-0 text-[#C00078]">
                     <Scissors className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-neutral-900">
+                      <span className="text-[13px] font-semibold text-[#24212A]">
                         Bespoke Atelier Tailoring Active
                       </span>
                       <button
@@ -1348,13 +1388,13 @@ export default function ProductDetailPage({
                           setIsBuyNowFlow(false)
                           setIsCustomMeasurementsOpen(true)
                         }}
-                        className="text-[11px] font-bold text-theme-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                        className="text-[11px] font-semibold text-[#C00078] hover:underline flex items-center gap-0.5 cursor-pointer"
                       >
                         <span>{customMeasurementsData ? 'Edit Measurements' : 'Customize Fit'}</span>
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-[11px] text-neutral-600 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[#77717C] mt-0.5 leading-relaxed">
                       {customMeasurementsData?.summaryText ? (
                         <span className="text-emerald-700 font-semibold">
                           ✓ {customMeasurementsData.summaryText}
@@ -1371,7 +1411,7 @@ export default function ProductDetailPage({
             {/* Size Selector */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-neutral-900 uppercase tracking-wider">
+                <span className="text-[12px] font-semibold text-[#24212A]">
                   Select Size
                 </span>
                 <button
@@ -1542,7 +1582,7 @@ export default function ProductDetailPage({
                   >
                     -
                   </button>
-                  <span className="w-9 text-center text-xs font-black text-neutral-900 select-none">
+                  <span className="w-9 text-center text-[13px] font-semibold text-[#24212A] select-none tabular-nums">
                     {quantity}
                   </span>
                   <button
@@ -1566,19 +1606,19 @@ export default function ProductDetailPage({
                         onOpenCheckout()
                       }
                     }}
-                    className="flex-1 h-12 px-6 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-semibold uppercase tracking-wider rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 h-12 px-6 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[13px] sm:text-[14px] font-semibold tracking-normal rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                    <span>GO TO BAG</span>
+                    <span>Go to Bag</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={handleAdd}
-                    className="flex-1 h-12 px-6 bg-[#C00078] hover:bg-[#A80069] active:bg-[#97005F] text-white text-xs sm:text-sm font-semibold uppercase tracking-wider rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer outline-none"
+                    className="flex-1 h-12 px-6 bg-[#C00078] hover:bg-[#A80069] active:bg-[#97005F] text-white text-[13px] sm:text-[14px] font-semibold tracking-normal rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer outline-none tabular-nums"
                   >
                     <ShoppingBag className="w-4 h-4 text-white stroke-[2]" />
-                    <span>ADD TO BAG • ₹{(finalUnitPrice * quantity).toFixed(2)}</span>
+                    <span>Add to Bag • ₹{(finalUnitPrice * quantity).toFixed(2)}</span>
                   </button>
                 )}
               </div>
@@ -1605,6 +1645,8 @@ export default function ProductDetailPage({
                     size: activeSizeObj?.size || 'Standard',
                     material: currentMaterial?.name || null,
                     materialId: currentMaterial?.id || null,
+                    material_id: currentMaterial?.id || null,
+                    color: currentMaterial?.material_name || null,
                     addons: selectedAddons,
                     quantity,
                     alteration: includeAlteration,
@@ -1652,10 +1694,10 @@ export default function ProductDetailPage({
                   handleAdd()
                   if (onOpenCheckout) onOpenCheckout()
                 }}
-                className="w-full h-12 px-6 bg-[#222222] hover:bg-[#111111] active:bg-[#000000] text-white text-xs sm:text-sm font-semibold uppercase tracking-wider rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer outline-none"
+                className="w-full h-12 px-6 bg-[#24212A] hover:bg-[#111111] active:bg-[#000000] text-white text-[13px] sm:text-[14px] font-semibold tracking-normal rounded-[9px] transition-colors duration-150 ease-out border-0 shadow-none flex items-center justify-center gap-2 cursor-pointer outline-none"
               >
                 <Zap className="w-4 h-4 text-white fill-white" />
-                <span>BUY NOW</span>
+                <span>Buy Now</span>
               </button>
             </div>
 
@@ -1727,7 +1769,7 @@ export default function ProductDetailPage({
                       className="w-12 h-12 rounded-xl object-cover border border-neutral-200"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-pink-50 text-theme-primary font-black flex items-center justify-center text-sm border border-[var(--theme-primary)]/20">
+                    <div className="w-12 h-12 rounded-xl bg-[#FFF5FA] text-[#C00078] font-semibold flex items-center justify-center text-sm border border-[#F0E5EC]">
                       {brand.substring(0, 2).toUpperCase()}
                     </div>
                   )}
@@ -1752,53 +1794,25 @@ export default function ProductDetailPage({
 
         {/* Product Details & Specifications Tabs */}
         <div className="mt-14 border-t border-neutral-200/80 pt-8">
-          <div className="flex gap-4 border-b border-neutral-200 pb-3 overflow-x-auto">
+          <div className="flex gap-6 border-b border-neutral-200 pb-3 overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab('details')}
-              className={`pb-2 text-sm font-bold tracking-tight transition-all cursor-pointer relative shrink-0 ${
+              className={`pb-2 text-sm font-semibold tracking-tight transition-all cursor-pointer relative shrink-0 ${
                 activeTab === 'details'
-                  ? 'text-theme-primary border-b-2 border-[var(--theme-primary)]'
-                  : 'text-neutral-500 hover:text-neutral-900'
+                  ? 'text-[#C00078] border-b-2 border-[#C00078]'
+                  : 'text-[#77717C] hover:text-[#24212A]'
               }`}
             >
               Product Specifications
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('measurements')}
-              className={`pb-2 text-sm font-bold tracking-tight transition-all cursor-pointer relative flex items-center gap-1.5 shrink-0 ${
-                activeTab === 'measurements'
-                  ? 'text-theme-primary border-b-2 border-[var(--theme-primary)]'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              <Ruler className="w-4 h-4" />
-              <span>Measurements & Custom Sizing</span>
-              {unifiedMeasurementTable.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-100 text-[var(--theme-primary)] font-extrabold">
-                  {unifiedMeasurementTable.length}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('materials')}
-              className={`pb-2 text-sm font-bold tracking-tight transition-all cursor-pointer relative shrink-0 ${
-                activeTab === 'materials'
-                  ? 'text-theme-primary border-b-2 border-[var(--theme-primary)]'
-                  : 'text-neutral-500 hover:text-neutral-900'
-              }`}
-            >
-              Fabrics & Variants ({materials.length})
-            </button>
-            <button
-              type="button"
               onClick={() => setActiveTab('reviews')}
-              className={`pb-2 text-sm font-bold tracking-tight transition-all cursor-pointer relative shrink-0 ${
+              className={`pb-2 text-sm font-semibold tracking-tight transition-all cursor-pointer relative shrink-0 ${
                 activeTab === 'reviews'
-                  ? 'text-theme-primary border-b-2 border-[var(--theme-primary)]'
-                  : 'text-neutral-500 hover:text-neutral-900'
+                  ? 'text-[#C00078] border-b-2 border-[#C00078]'
+                  : 'text-[#77717C] hover:text-[#24212A]'
               }`}
             >
               Ratings & Reviews ({ratingCount})
@@ -1809,13 +1823,37 @@ export default function ProductDetailPage({
             {activeTab === 'details' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-neutral-900 mb-2">
+                  <h3 className="text-[13px] font-semibold text-[#24212A] mb-2">
                     Description & Atelier Craft
                   </h3>
                   <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed max-w-3xl">
                     {description}
                   </p>
                 </div>
+
+                {/* Specifications from product_info table */}
+                {productInfoItems.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-[13px] font-semibold text-[#24212A]">
+                      Product Specifications
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl">
+                      {productInfoItems.map((spec) => (
+                        <div
+                          key={spec.id}
+                          className="bg-[#FFF5FA]/70 border border-[#F0E5EC] rounded-xl p-3.5 flex flex-col justify-between"
+                        >
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#77717C]">
+                            {spec.details_name}
+                          </span>
+                          <span className="text-[13.5px] font-medium text-[#24212A] mt-1 break-words">
+                            {spec.details_value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Structured Specs Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-w-4xl">
@@ -1859,285 +1897,11 @@ export default function ProductDetailPage({
               </div>
             )}
 
-            {activeTab === 'measurements' && (
-              <div className="space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-pink-50/80 via-white to-purple-50/50 p-6 rounded-3xl border border-pink-100">
-                  <div className="space-y-1">
-                    <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--theme-primary)]">
-                      <Scissors className="w-4 h-4" />
-                      <span>Bespoke Made-to-Measure System</span>
-                    </div>
-                    <h3 className="text-base font-extrabold text-neutral-900">
-                      Garment Measurement Specification Table
-                    </h3>
-                    <p className="text-xs text-neutral-600 max-w-2xl leading-relaxed">
-                      All dimensions are in inches ("). You can order this garment in standard sizing or choose custom tailoring fitted to your exact body measurements.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomMeasurementsOpen(true)}
-                    className="self-start sm:self-center px-5 py-2.5 btn-theme text-xs font-bold shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer shrink-0"
-                  >
-                    <Ruler className="w-4 h-4" />
-                    <span>{customMeasurementsData ? 'Update My Measurements' : 'Customize My Fit'}</span>
-                  </button>
-                </div>
-
-                {/* The Full Measurement Table across all sizes */}
-                {unifiedMeasurementTable.length > 0 ? (
-                  <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white shadow-xs">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-neutral-100/90 text-neutral-800 font-bold border-b border-neutral-200">
-                          <th className="p-3.5">Measurement Point</th>
-                          <th className="p-3.5 text-center text-neutral-500 font-semibold">Diagram</th>
-                          {(product?.sizes?.length > 0
-                            ? product.sizes
-                            : ['XS', 'S', 'M', 'L', 'XL', 'FREE SIZE']
-                          ).map((s) => {
-                            const isCurrent = (activeSizeObj?.size || 'XS') === s
-                            return (
-                              <th
-                                key={s}
-                                className={`p-3.5 text-center transition-colors ${
-                                  isCurrent
-                                    ? 'bg-pink-100 text-pink-900 font-black border-x border-pink-200'
-                                    : 'text-neutral-700'
-                                }`}
-                              >
-                                <div className="flex flex-col items-center">
-                                  <span>{s}</span>
-                                  {isCurrent && (
-                                    <span className="text-[9px] uppercase tracking-wider font-extrabold text-[var(--theme-primary)]">
-                                      Active
-                                    </span>
-                                  )}
-                                </div>
-                              </th>
-                            )
-                          })}
-                          <th className="p-3.5 text-center text-neutral-600 font-semibold">
-                            Custom Tolerance
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {unifiedMeasurementTable.map((m) => (
-                          <tr key={m.id} className="hover:bg-neutral-50/70 transition-colors">
-                            <td className="p-3.5 font-bold text-neutral-900 capitalize">
-                              <span>{m.name}</span>
-                            </td>
-                            <td className="p-3.5 text-center">
-                              {m.image ? (
-                                <img
-                                  src={m.image}
-                                  alt={m.name}
-                                  className="w-10 h-10 rounded-xl object-cover border border-neutral-200 inline-block bg-white shadow-2xs"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-xl bg-pink-50 text-theme-primary inline-flex items-center justify-center">
-                                  <Ruler className="w-5 h-5" />
-                                </div>
-                              )}
-                            </td>
-                            {(product?.sizes?.length > 0
-                              ? product.sizes
-                              : ['XS', 'S', 'M', 'L', 'XL', 'FREE SIZE']
-                            ).map((s) => {
-                              const isCurrent = (activeSizeObj?.size || 'XS') === s
-                              const val = m.values?.[s] !== undefined ? `${m.values[s]}"` : (isCurrent ? `${m.standardValue}"` : '-')
-                              return (
-                                <td
-                                  key={s}
-                                  className={`p-3.5 text-center font-mono font-semibold ${
-                                    isCurrent
-                                      ? 'bg-pink-50/60 font-black text-pink-900 border-x border-pink-200'
-                                      : 'text-neutral-700'
-                                  }`}
-                                >
-                                  {val}
-                                </td>
-                              )
-                            })}
-                            <td className="p-3.5 text-center font-mono text-[11px] text-neutral-500">
-                              {m.minValue}" - {m.maxValue}"
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-neutral-500 bg-neutral-50 rounded-2xl border border-neutral-200">
-                    <Ruler className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                    <p className="text-xs font-semibold">No custom measurements schema defined for this product.</p>
-                  </div>
-                )}
-
-                {/* How to Measure Atelier Guide */}
-                <div className="p-6 bg-neutral-50 rounded-3xl border border-neutral-200/80 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-theme-primary" />
-                    <span>How to Measure Your Body</span>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-neutral-600">
-                    <div className="p-3.5 bg-white rounded-2xl border border-neutral-200/60">
-                      <strong className="block text-neutral-900 mb-1">Waist</strong>
-                      <span>Measure around your natural waistline, keeping the tape comfortably loose.</span>
-                    </div>
-                    <div className="p-3.5 bg-white rounded-2xl border border-neutral-200/60">
-                      <strong className="block text-neutral-900 mb-1">Bust / Chest</strong>
-                      <span>Measure around the fullest part of your chest, keeping the tape horizontal.</span>
-                    </div>
-                    <div className="p-3.5 bg-white rounded-2xl border border-neutral-200/60">
-                      <strong className="block text-neutral-900 mb-1">Length</strong>
-                      <span>Measure from the highest shoulder point straight down to the desired hemline.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'materials' && (
-              <div className="space-y-6">
-                {fabricsList.length > 0 ? (
-                  fabricsList.map((fab, fIdx) => (
-                    <div key={fab.id || fIdx} className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs">
-                      <div className="flex items-center justify-between border-b border-neutral-100 pb-3 mb-4">
-                        <div>
-                          <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-theme-primary" />
-                            <span>{fab.fabric_name || fab.name}</span>
-                          </h4>
-                          {fab.composition && (
-                            <p className="text-xs text-neutral-500 mt-0.5">{fab.composition}</p>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-theme-primary bg-pink-50 px-2.5 py-1 rounded-full border border-pink-100">
-                          {fab.colours?.length || 0} Colour{fab.colours?.length === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      {fab.description && (
-                        <p className="text-xs text-neutral-600 mb-4 leading-relaxed">{fab.description}</p>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {(fab.colours || []).map((col) => {
-                          const mIdx = materials.findIndex(m => String(m.id) === String(col.id));
-                          const isSel = selectedMaterialIdx === mIdx;
-                          const colImg = col.images?.[0]?.img_path || col.main_img_path || product.lowest_price_main_image;
-                          const colPrice = col.prices?.ready_made_products?.[0]?.discount_price || col.prices?.customizable_products?.[0]?.discount_price;
-                          return (
-                            <div
-                              key={col.id}
-                              onClick={() => { if (mIdx !== -1) handleSelectMaterial(mIdx); }}
-                              className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${
-                                isSel
-                                  ? 'border-[var(--theme-primary)] bg-pink-50/50 ring-1 ring-[var(--theme-primary)] shadow-xs'
-                                  : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50/50'
-                              }`}
-                            >
-                              <span
-                                className="w-5 h-5 rounded-full border border-white shadow-xs shrink-0 ring-1 ring-neutral-200"
-                                style={{ backgroundColor: col.color_code || '#C00078' }}
-                              />
-                              {colImg && (
-                                <img
-                                  src={formatImageUrl(colImg)}
-                                  alt={col.colour_name || col.name}
-                                  className="w-10 h-12 rounded-lg object-cover border border-neutral-200 shrink-0"
-                                />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-xs font-bold text-neutral-900 truncate">
-                                    {col.colour_name || col.material_name || col.name}
-                                  </p>
-                                  {colPrice && (
-                                    <span className="text-xs font-extrabold text-theme-primary ml-1 shrink-0">
-                                      ₹{parseFloat(colPrice).toFixed(2)}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[10px] text-neutral-400 mt-0.5 font-medium">
-                                  Fabric: {fab.fabric_name}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))
-                ) : materials.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {materials.map((m, idx) => {
-                      const matImg =
-                        m.images?.[0]?.img_path ||
-                        m.main_img_path ||
-                        product.lowest_price_main_image
-                      const matPrice =
-                        m.prices?.ready_made_products?.[0]?.discount_price ||
-                        m.prices?.customizable_products?.[0]?.discount_price
-
-                      return (
-                        <div
-                          key={m.id || idx}
-                          onClick={() => handleSelectMaterial(idx)}
-                          className={`border rounded-2xl p-4 bg-white flex items-start gap-4 cursor-pointer transition-all ${
-                            selectedMaterialIdx === idx
-                              ? 'border-[var(--theme-primary)] ring-1 ring-[var(--theme-primary)]'
-                              : 'border-neutral-200 hover:border-neutral-300'
-                          }`}
-                        >
-                          {matImg && (
-                            <img
-                              src={formatImageUrl(matImg)}
-                              alt={m.name}
-                              className="w-16 h-20 rounded-xl object-cover shrink-0 border border-neutral-200"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-bold text-neutral-900">
-                                {m.material_name || m.name}
-                              </h4>
-                              {matPrice && (
-                                <span className="text-xs font-extrabold text-theme-primary">
-                                  ₹{parseFloat(matPrice).toFixed(2)}
-                                </span>
-                              )}
-                            </div>
-                            {m.name && m.name !== m.material_name && (
-                              <p className="text-[10px] text-neutral-400 font-medium mt-0.5">
-                                Fabric: {m.name}
-                              </p>
-                            )}
-                            <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
-                              {m.description || 'Premium bespoke fabric.'}
-                            </p>
-                            <span className="text-[11px] text-neutral-400 mt-2 block">
-                              {m.images?.length || 0} photo{m.images?.length === 1 ? '' : 's'} •{' '}
-                              {m.addons?.length ? `${m.addons.length} add-on available` : 'Standard edition'}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-neutral-500">
-                    Standard high-grade fabrics sourced ethically from certified artisan mills.
-                  </p>
-                )}
-              </div>
-            )}
-
             {activeTab === 'reviews' && (
               <div className="max-w-2xl space-y-6">
                 <div className="flex items-center gap-6 p-5 bg-neutral-50 rounded-2xl border border-neutral-200">
                   <div className="text-center">
-                    <span className="text-4xl font-black text-neutral-900 block">
+                    <span className="text-3xl font-bold text-[#24212A] block tabular-nums">
                       {rating.toFixed(1)}
                     </span>
                     <div className="flex items-center justify-center gap-0.5 mt-1">
@@ -2185,10 +1949,10 @@ export default function ProductDetailPage({
                 {allReviewPhotos.length > 0 && (
                   <div className="p-5 bg-white rounded-2xl border border-neutral-200 space-y-3 shadow-2xs">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-neutral-900">
+                      <h4 className="text-[13px] font-semibold text-[#24212A]">
                         Customer Photos ({allReviewPhotos.length})
                       </h4>
-                      <span className="text-[11px] text-neutral-400 font-medium">Authentic buyer submissions</span>
+                      <span className="text-[11px] text-[#77717C] font-normal">Authentic buyer submissions</span>
                     </div>
                     <div className="flex flex-wrap gap-2.5">
                       {allReviewPhotos.map((url, idx) => (
@@ -2216,7 +1980,7 @@ export default function ProductDetailPage({
                 {/* Customer Reviews Feed */}
                 <div id="customer-reviews-section" className="space-y-4 pt-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-neutral-900">
+                    <h4 className="text-[13px] font-semibold text-[#24212A]">
                       Customer Reviews ({product.reviews?.length || 0})
                     </h4>
                     {product.reviews && product.reviews.length > 0 && (
@@ -2256,19 +2020,19 @@ export default function ProductDetailPage({
                                   className="w-9 h-9 rounded-full object-cover border border-neutral-200"
                                 />
                               ) : (
-                                <div className="w-9 h-9 rounded-full bg-neutral-900 text-white font-black text-xs flex items-center justify-center">
+                                <div className="w-9 h-9 rounded-full bg-[#24212A] text-white font-semibold text-xs flex items-center justify-center">
                                   {reviewerName.charAt(0).toUpperCase()}
                                 </div>
                               )}
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <h5 className="text-xs font-bold text-neutral-900">{reviewerName}</h5>
-                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                  <h5 className="text-xs font-semibold text-[#24212A]">{reviewerName}</h5>
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
                                     <CheckCircle2 className="w-2.5 h-2.5" /> Verified Buyer
                                   </span>
                                 </div>
                                 {dateStr && (
-                                  <p className="text-[10px] text-neutral-400 mt-0.5">
+                                  <p className="text-[10px] text-[#77717C] mt-0.5">
                                     {new Date(dateStr).toLocaleDateString('en-IN', {
                                       day: 'numeric',
                                       month: 'short',
@@ -2283,7 +2047,7 @@ export default function ProductDetailPage({
                               const starInfo = getStarColor(ratingScore)
                               return (
                                 <div className={`flex items-center gap-0.5 ${starInfo.bgClass} px-2.5 py-1 rounded-xl border ${starInfo.borderClass}`}>
-                                  <span className={`text-xs font-black ${starInfo.textClass} mr-1`}>{ratingScore}</span>
+                                  <span className={`text-xs font-semibold ${starInfo.textClass} mr-1 tabular-nums`}>{ratingScore}</span>
                                   {[1, 2, 3, 4, 5].map((s) => (
                                     <Star
                                       key={s}
@@ -2581,6 +2345,10 @@ export default function ProductDetailPage({
               custom_measurements: result.measurements || null,
               measurement_summary: result.summaryText || null,
               measurment_details: result.measurements || [],
+              gst_id: activeSizeObj?.gst_id || product.gst_id || null,
+              gst_name: activeSizeObj?.gst_name || product.gst_name || null,
+              gst_rate: activeSizeObj?.gst_rate || product.gst_rate || null,
+              gst_percentage: activeSizeObj?.gst_percentage !== undefined ? Number(activeSizeObj.gst_percentage) : (Number(product.gst_percentage) || 0),
             }
 
             if (onAddToCart) {

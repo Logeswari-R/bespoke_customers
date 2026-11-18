@@ -105,18 +105,18 @@ export default function RecentlyViewedSection({
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <h2
-                className={`text-xl sm:text-2xl font-black tracking-tight ${
-                  isBespoke ? 'text-white drop-shadow-xs' : 'font-serif font-bold text-[#24212A]'
+                className={`text-xl sm:text-2xl font-semibold tracking-normal ${
+                  isBespoke ? 'text-white drop-shadow-xs' : 'text-[#24212A]'
                 }`}
               >
                 Recently <span className={isBespoke ? 'text-pink-200' : 'text-[#C00078]'}>Viewed</span>
               </h2>
               {/* Cut-Corner Asymmetric Atelier Badge */}
               <span
-                className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider py-0.5 px-2.5 rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs border shadow-xs ${
+                className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider py-0.5 px-2.5 rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs border shadow-xs ${
                   isBespoke
                     ? 'bg-white/20 backdrop-blur-md text-white border-white/30'
-                    : 'bg-[#FFF1F8] text-[#C00078] border-[#F8D4E8]'
+                    : 'bg-[#FFF5FA] text-[#C00078] border-[#F0E5EC]'
                 }`}
               >
                 <Clock className="w-2.5 h-2.5" />
@@ -211,10 +211,16 @@ export default function RecentlyViewedSection({
           {activeItems.map((item) => {
             const prodId = item.id || item.product_id
             const isWishlisted = Array.isArray(wishlistIds) && wishlistIds.includes(Number(prodId))
-            const isInCart = Array.isArray(cartItems) && cartItems.some(
-              (ci) =>
-                String(ci.product_id || ci.productId || ci.id) === String(prodId)
-            )
+            const targetMatId = item.material_id || item.variant_id || item.selectedMaterialId || null
+            const isInCart = Array.isArray(cartItems) && cartItems.some((ci) => {
+              const sameProd = String(ci.product_id || ci.productId || ci.id) === String(prodId)
+              if (!sameProd) return false
+              if (targetMatId) {
+                const itemMatId = ci.material_id || ci.materialId || null
+                if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+              }
+              return true
+            })
 
             const price = parseFloat(item.selling_price || item.price || item.offer_price || 499)
             const originalPrice = parseFloat(item.original_price || item.actual_price || 0)
@@ -366,7 +372,7 @@ export default function RecentlyViewedSection({
 
                     {/* Title */}
                     <h3
-                      className="text-xs sm:text-[13px] font-semibold text-[#24212A] line-clamp-1 leading-snug group-hover:text-[#C00078] transition-colors mt-0.5"
+                      className="text-[14px] font-medium text-[#24212A] line-clamp-1 leading-snug group-hover:text-[#C00078] transition-colors mt-0.5"
                       title={item.product_name || item.title}
                     >
                       {item.product_name || item.title}
@@ -376,14 +382,14 @@ export default function RecentlyViewedSection({
                   {/* Price Row */}
                   <div className="border-t border-[#F0E5EC] pt-2.5 mt-2 flex items-baseline justify-between gap-1.5">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-sm sm:text-base font-bold text-[#C00078] leading-none">
+                      <span className="text-base font-bold text-[#C00078] tabular-nums leading-none">
                         ₹{price.toLocaleString('en-IN')}
                       </span>
-                      {originalPrice && Number(originalPrice) > Number(price) && (
-                        <span className="text-[11px] text-neutral-400 line-through leading-none">
+                      {Number(originalPrice) > Number(price) ? (
+                        <span className="text-xs text-neutral-400 line-through tabular-nums leading-none">
                           ₹{originalPrice.toLocaleString('en-IN')}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Mobile Quick Add to Bag */}

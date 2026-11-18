@@ -71,8 +71,8 @@ export default function SpotlightShopsSection({
           <div className="flex items-center gap-3">
             <h2
               onClick={onViewAll}
-              className={`text-xl sm:text-2xl font-black tracking-tight transition-opacity ${
-                isBespoke ? 'text-white drop-shadow-xs' : 'text-neutral-900'
+              className={`text-[22px] sm:text-[24px] font-semibold tracking-normal transition-opacity ${
+                isBespoke ? 'text-white drop-shadow-xs' : 'text-[#24212A]'
               } ${onViewAll ? 'cursor-pointer hover:opacity-90' : ''}`}
             >
               {isBespoke ? (
@@ -85,10 +85,10 @@ export default function SpotlightShopsSection({
             </h2>
             {/* Cut-Corner Asymmetric Atelier Badge */}
             <span
-              className={`text-[10px] uppercase font-black tracking-widest px-3 py-0.5 border shadow-xs rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs ${
+              className={`text-[10px] uppercase font-semibold tracking-wider px-3 py-0.5 border shadow-xs rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs ${
                 isBespoke
                   ? 'text-white bg-white/20 backdrop-blur-md border-white/30'
-                  : 'bg-[#FFF1F8] text-[#D6007A] border-[#F8D4E8]'
+                  : 'bg-[#FFF5FA] text-[#C00078] border-[#F0E5EC]'
               }`}
             >
               Boutiques
@@ -204,10 +204,10 @@ export default function SpotlightShopsSection({
                 <span className="text-[10px] uppercase tracking-widest text-pink-200 font-bold mb-0.5">
                   Starting from
                 </span>
-                <span className="text-lg sm:text-xl font-black text-white tracking-wide drop-shadow-sm mb-1">
+                <span className="text-[17px] sm:text-[18px] font-bold text-white tabular-nums drop-shadow-sm mb-1">
                   ₹{shop.price}
                 </span>
-                <span className="text-xs text-neutral-200 font-medium line-clamp-1 mb-3.5">
+                <span className="text-xs text-white/95 font-semibold line-clamp-1 mb-3.5 drop-shadow-sm">
                   {shop.title || shop.shop_name}
                 </span>
 
@@ -223,7 +223,7 @@ export default function SpotlightShopsSection({
                       }}
                     />
                   ) : (
-                    <span className="font-serif font-black tracking-widest text-neutral-900 text-xs uppercase flex items-center gap-1.5">
+                    <span className="font-semibold text-neutral-900 text-xs tracking-wide flex items-center gap-1.5">
                       <span>{shop.title}</span>
                       <ArrowRight className="w-3.5 h-3.5 text-[#D6007A] group-hover:translate-x-1 transition-transform" />
                     </span>

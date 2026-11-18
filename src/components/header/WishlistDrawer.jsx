@@ -146,11 +146,11 @@ export default function WishlistDrawer({
                             <span className="text-sm font-extrabold text-theme-primary">
                               ₹{price}
                             </span>
-                            {item.actual_price && item.actual_price > price && (
+                            {Number(item.actual_price) > Number(price) ? (
                               <span className="text-xs text-neutral-400 line-through">
                                 ₹{item.actual_price}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 

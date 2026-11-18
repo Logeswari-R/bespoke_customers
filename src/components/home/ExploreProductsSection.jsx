@@ -1000,9 +1000,16 @@ export default function ExploreProductsSection({
                   const price = product.discount_price || product.actual_price || product.price
                   const originalPrice = product.actual_price || product.original_price
                   const prodId = Number(product.product_id || product.id)
-                  const isInCart = cartItems.some(
-                    (i) => Number(i.product_id || i.product?.id || i.id) === prodId
-                  )
+                  const targetMatId = product.material_id || product.variant_id || product.selectedMaterialId || null
+                  const isInCart = cartItems.some((i) => {
+                    const sameProd = Number(i.product_id || i.product?.id || i.id) === prodId
+                    if (!sameProd) return false
+                    if (targetMatId) {
+                      const itemMatId = i.material_id || i.materialId || null
+                      if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                    }
+                    return true
+                  })
                   const isCustomizable = isProductCustomizable(product)
 
                   const discountPercent = (() => {
@@ -1132,14 +1139,14 @@ export default function ExploreProductsSection({
                           {/* Row 1: Product name on left & Custom badge on right */}
                           <div className="flex items-start justify-between gap-2">
                             <h3
-                              className="text-[16px] font-semibold text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
+                              className="text-[15px] font-medium text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
                               title={product.product_name || product.title}
                             >
                               {product.product_name || product.title}
                             </h3>
 
                             {isCustomizable && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
                                 <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
                                 <span>CUSTOM</span>
                               </span>
@@ -1149,13 +1156,13 @@ export default function ExploreProductsSection({
                           {/* Row 2: Vendor / shop name */}
                           <div className="flex items-center justify-between gap-1.5 mt-1">
                             <p
-                              className="text-[13.5px] font-normal text-[#77717C] text-left truncate"
+                              className="text-[12px] font-normal text-[#77717C] text-left truncate"
                               title={product.shop_name || product.vendor?.shop_name || product.vendor_name || 'Bespoke Studio'}
                             >
                               {product.shop_name || product.vendor?.shop_name || product.vendor_name || 'Bespoke Studio'}
                             </p>
                             {product.variant_name && (
-                              <span className="text-[10px] font-semibold text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full border border-neutral-200/60 truncate max-w-[110px] shrink-0" title={`Variant: ${product.variant_name}`}>
+                              <span className="text-[10px] font-medium text-[#77717C] bg-neutral-100 px-2 py-0.5 rounded-full border border-neutral-200/60 truncate max-w-[110px] shrink-0" title={`Variant: ${product.variant_name}`}>
                                 {product.variant_name}
                               </span>
                             )}
@@ -1165,16 +1172,16 @@ export default function ExploreProductsSection({
                         {/* 4. Subtle divider & 5. Horizontal Price Layout */}
                         <div className="border-t border-[#F0E5EC] mt-3 pt-3 flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center flex-wrap gap-2">
-                            <span className="text-[20px] font-bold text-[#C00078] leading-none">
+                            <span className="text-[17px] font-bold text-[#C00078] tabular-nums leading-none">
                               ₹{price}
                             </span>
-                            {originalPrice && Number(originalPrice) > Number(price) && (
-                              <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
+                            {Number(originalPrice) > Number(price) ? (
+                              <span className="text-[12.5px] font-normal text-[#999999] line-through tabular-nums leading-none">
                                 ₹{originalPrice}
                               </span>
-                            )}
+                            ) : null}
                             {discountPercent > 0 && (
-                              <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
+                              <span className="inline-flex items-center text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-1.5 py-0.5 rounded-[5px] leading-none">
                                 {discountPercent}% OFF
                               </span>
                             )}

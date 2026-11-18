@@ -597,7 +597,7 @@ export default function PaymentsPage({
 
                       {/* Top Row: Network & Default Badge */}
                       <div className="relative z-10 flex items-center justify-between">
-                        <span className="text-xs font-black uppercase tracking-wider text-pink-300">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-pink-300">
                           {card.cardType || brand.name}
                         </span>
 
@@ -853,7 +853,7 @@ export default function PaymentsPage({
                         >
                           {payment.status}
                         </span>
-                        <span className="text-sm sm:text-base font-black text-[#D6007A]">
+                        <span className="text-[16px] font-bold text-[#C00078] tabular-nums">
                           ₹{payment.amount}
                         </span>
                       </div>

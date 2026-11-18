@@ -59,7 +59,7 @@ function getOrderStatusCategories(order) {
 
   const isReturned = Boolean(
     order.is_returned === true ||
-    cancelledType === 'return' ||
+    (cancelledType === 'return' && Boolean(order.cancelled_at)) ||
     Boolean(order.return_details) ||
     statusStr.includes('RETURN') ||
     historyStr.includes('RETURN') ||
@@ -78,14 +78,13 @@ function getOrderStatusCategories(order) {
     !isReturned &&
     !isDelivered &&
     (order.is_cancelled === true ||
-      order.cancelled_at ||
-      cancelledType === 'cancel' ||
+      Boolean(order.cancelled_at) ||
+      (cancelledType === 'cancel' && Boolean(order.cancelled_at)) ||
       rawStatusNum === 4 ||
       statusStr.includes('CANCEL') ||
       statusStr.includes('DECLINE') ||
       historyStr.includes('CANCEL') ||
-      historyStr.includes('DECLINE') ||
-      (statusStr.includes('REFUND') && cancelledType !== 'return'))
+      historyStr.includes('DECLINE'))
   )
 
   const categories = []
@@ -172,6 +171,7 @@ export default function OrdersPage({
   const [searchQuery, setSearchQuery] = useState('')
   const [reviewingItem, setReviewingItem] = useState(null)
   const [invoiceOrderId, setInvoiceOrderId] = useState(null)
+  const [invoiceSaleOrderId, setInvoiceSaleOrderId] = useState(null)
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
 
   const loadOrdersAndReviews = useCallback(async () => {
@@ -367,7 +367,7 @@ export default function OrdersPage({
 
     const isReturned = Boolean(
       order.is_returned === true ||
-      cancelledType === 'return' ||
+      (cancelledType === 'return' && Boolean(order.cancelled_at)) ||
       Boolean(order.return_details) ||
       s.includes('RETURN') ||
       historyStr.includes('RETURN') ||
@@ -386,19 +386,18 @@ export default function OrdersPage({
       !isReturned &&
       !isDelivered &&
       (order.is_cancelled === true ||
-        order.cancelled_at ||
-        cancelledType === 'cancel' ||
+        Boolean(order.cancelled_at) ||
+        (cancelledType === 'cancel' && Boolean(order.cancelled_at)) ||
         rawStatusNum === 4 ||
         s.includes('CANCEL') ||
         s.includes('DECLINE') ||
         historyStr.includes('CANCEL') ||
-        historyStr.includes('DECLINE') ||
-        (s.includes('REFUND') && cancelledType !== 'return'))
+        historyStr.includes('DECLINE'))
     )
 
     if (isReturned) {
       return (
-        <span className="bg-amber-50 text-amber-800 border border-amber-200/90 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <span className="bg-amber-50 text-amber-800 border border-amber-200/90 text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
           <RotateCcw className="w-3 h-3 text-amber-600" />
           <span>Return Processed</span>
         </span>
@@ -407,12 +406,11 @@ export default function OrdersPage({
 
     if (isCancelled) {
       const isRefunded = Boolean(
-        s.includes('REFUND') ||
-        historyStr.includes('REFUND') ||
-        (order.refund && ['completed', 'processed', 'success'].includes(String(order.refund.refund_status || '').toLowerCase()))
+        (order.refund && ['completed', 'processed', 'success'].includes(String(order.refund.refund_status || '').toLowerCase())) ||
+        ((order.is_cancelled || Boolean(order.cancelled_at)) && (s.includes('REFUND') || historyStr.includes('REFUND')))
       )
       return (
-        <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
           <XCircle className="w-3 h-3 text-rose-600" />
           <span>{isRefunded ? 'Refund Processed' : 'Cancelled'}</span>
         </span>
@@ -421,7 +419,7 @@ export default function OrdersPage({
 
     if (isDelivered) {
       return (
-        <span className="bg-[#E8F8EE] text-[#059669] border border-[#C2F0D2] text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <span className="bg-[#E8F8EE] text-[#059669] border border-[#C2F0D2] text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
           <CheckCircle2 className="w-3 h-3 text-[#059669]" />
           <span>Delivered</span>
         </span>
@@ -430,7 +428,7 @@ export default function OrdersPage({
 
     if (s.includes('DISPATCH') || (s.includes('SHIP') && !s.includes('READY')) || rawStatusNum === 3 || rawStatusNum === 6 || rawStatusNum === 7) {
       return (
-        <span className="bg-cyan-50 text-cyan-800 border border-cyan-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <span className="bg-cyan-50 text-cyan-800 border border-cyan-200 text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
           <Truck className="w-3 h-3 text-cyan-600" />
           <span>Dispatched</span>
         </span>
@@ -439,7 +437,7 @@ export default function OrdersPage({
 
     if (s.includes('READY') || rawStatusNum === 2) {
       return (
-        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
           <Package className="w-3 h-3 text-blue-600" />
           <span>Ready to Ship</span>
         </span>
@@ -448,16 +446,25 @@ export default function OrdersPage({
 
     if (s.includes('CONFIRM') || s.includes('APPROV') || rawStatusNum === 1) {
       return (
-        <span className="bg-pink-50 text-[#d6007a] border border-pink-200/80 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
-          <Clock className="w-3 h-3 text-[#d6007a]" />
+        <span className="bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC] text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
+          <Clock className="w-3 h-3 text-[#C00078]" />
           <span>Order Confirmed</span>
         </span>
       )
     }
 
+    if (s.includes('PLACE') || s.includes('PLACED') || rawStatusNum === 0) {
+      return (
+        <span className="bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC] text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
+          <Clock className="w-3 h-3 text-[#C00078]" />
+          <span>Order Placed</span>
+        </span>
+      )
+    }
+
     return (
-      <span className="bg-pink-50 text-[#d6007a] border border-pink-200/80 text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-2xs">
-        <Clock className="w-3 h-3 text-[#d6007a]" />
+      <span className="bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC] text-[10.5px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-2xs">
+        <Clock className="w-3 h-3 text-[#C00078]" />
         <span>In Crafting</span>
       </span>
     )
@@ -485,22 +492,22 @@ export default function OrdersPage({
     <div className="min-h-screen bg-[#FAF9F8] py-6 sm:py-8 px-4 sm:px-6 lg:px-8 pb-20">
       <div className="max-w-7xl mx-auto">
         {/* Top Header & Breadcrumb */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#F0E5EC]">
           <div>
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-600 hover:text-black cursor-pointer transition-colors mb-1.5"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#77717C] hover:text-[#24212A] cursor-pointer transition-colors mb-1.5"
             >
-              <ArrowLeft className="w-4 h-4 text-[#d6007a]" />
+              <ArrowLeft className="w-3.5 h-3.5 text-[#C00078]" />
               <span>Back to Shopping</span>
             </button>
-            <h1 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight">
+            <h1 className="text-[24px] sm:text-[28px] font-semibold text-[#24212A] tracking-normal">
               My Orders & Atelier History
             </h1>
           </div>
 
-          <div className="text-xs text-neutral-500 font-medium self-start sm:self-auto">
+          <div className="text-[12px] text-[#77717C] font-normal self-start sm:self-auto">
             <span>{orders.length} total orders recorded</span>
           </div>
         </div>
@@ -511,18 +518,18 @@ export default function OrdersPage({
           {/* 1. LEFT SIDEBAR: FILTERS (Desktop) */}
           {/* ========================================================= */}
           <aside className="hidden lg:block lg:col-span-3 sticky top-24">
-            <div className="bg-white rounded-3xl border border-pink-100/90 shadow-xs p-5 space-y-5">
+            <div className="bg-white rounded-2xl border border-[#F0E5EC] shadow-2xs p-5 space-y-5">
               {/* Header: Filters + Clear all */}
-              <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5">
+              <div className="flex items-center justify-between border-b border-[#F0E5EC] pb-3.5">
                 <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 text-[#D6007A]" />
-                  <h2 className="text-base font-bold text-neutral-900 tracking-tight">Filters</h2>
+                  <SlidersHorizontal className="w-4 h-4 text-[#C00078]" />
+                  <h2 className="text-[15px] font-semibold text-[#24212A]">Filters</h2>
                 </div>
                 {activeFilterCount > 0 && (
                   <button
                     type="button"
                     onClick={clearAllFilters}
-                    className="text-xs font-bold text-[#D6007A] hover:text-[#B80068] hover:underline cursor-pointer"
+                    className="text-[12px] font-semibold text-[#C00078] hover:text-[#9e0062] hover:underline cursor-pointer"
                   >
                     CLEAR ALL
                   </button>
@@ -531,10 +538,10 @@ export default function OrdersPage({
 
               {/* Filter Group 1: Order Status */}
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3 flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#77717C] mb-3 flex items-center justify-between">
                   <span>Order Status</span>
                   {selectedStatuses.length > 0 && (
-                    <span className="text-[10px] font-bold text-[#D6007A] bg-pink-50 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-semibold text-[#C00078] bg-[#FFF5FA] px-1.5 py-0.5 rounded-full border border-[#F0E5EC]">
                       {selectedStatuses.length}
                     </span>
                   )}
@@ -546,7 +553,7 @@ export default function OrdersPage({
                     return (
                       <label
                         key={st}
-                        className="flex items-center justify-between text-xs font-medium text-neutral-700 hover:text-neutral-950 cursor-pointer select-none group"
+                        className="flex items-center justify-between text-[13px] font-normal text-[#24212A] hover:text-[#C00078] cursor-pointer select-none group"
                       >
                         <div className="flex items-center gap-2.5">
                           <input
@@ -558,17 +565,17 @@ export default function OrdersPage({
                           <div
                             className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                               isChecked
-                                ? 'bg-[#D6007A] border-[#D6007A] text-white shadow-2xs'
-                                : 'border-neutral-300 bg-white group-hover:border-[#D6007A]'
+                                ? 'bg-[#C00078] border-[#C00078] text-white shadow-2xs'
+                                : 'border-[#D1D5DB] bg-white group-hover:border-[#C00078]'
                             }`}
                           >
                             {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
-                          <span className={isChecked ? 'font-semibold text-neutral-900' : 'text-neutral-700'}>
+                          <span className={isChecked ? 'font-medium text-[#24212A]' : 'text-[#77717C]'}>
                             {st}
                           </span>
                         </div>
-                        <span className="text-[11px] text-neutral-400 font-normal">
+                        <span className="text-[11px] text-[#77717C] font-normal tabular-nums">
                           ({count})
                         </span>
                       </label>
@@ -577,14 +584,14 @@ export default function OrdersPage({
                 </div>
               </div>
 
-              <div className="border-t border-neutral-100" />
+              <div className="border-t border-[#F0E5EC]" />
 
               {/* Filter Group 2: Order Time */}
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-3 flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#77717C] mb-3 flex items-center justify-between">
                   <span>Order Time</span>
                   {selectedTimeFilters.length > 0 && (
-                    <span className="text-[10px] font-bold text-[#D6007A] bg-pink-50 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-semibold text-[#C00078] bg-[#FFF5FA] px-1.5 py-0.5 rounded-full border border-[#F0E5EC]">
                       {selectedTimeFilters.length}
                     </span>
                   )}
@@ -596,7 +603,7 @@ export default function OrdersPage({
                     return (
                       <label
                         key={tf}
-                        className="flex items-center justify-between text-xs font-medium text-neutral-700 hover:text-neutral-950 cursor-pointer select-none group"
+                        className="flex items-center justify-between text-[13px] font-normal text-[#24212A] hover:text-[#C00078] cursor-pointer select-none group"
                       >
                         <div className="flex items-center gap-2.5">
                           <input
@@ -608,17 +615,17 @@ export default function OrdersPage({
                           <div
                             className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
                               isChecked
-                                ? 'bg-[#D6007A] border-[#D6007A] text-white shadow-2xs'
-                                : 'border-neutral-300 bg-white group-hover:border-[#D6007A]'
+                                ? 'bg-[#C00078] border-[#C00078] text-white shadow-2xs'
+                                : 'border-[#D1D5DB] bg-white group-hover:border-[#C00078]'
                             }`}
                           >
                             {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
-                          <span className={isChecked ? 'font-semibold text-neutral-900' : 'text-neutral-700'}>
+                          <span className={isChecked ? 'font-medium text-[#24212A]' : 'text-[#77717C]'}>
                             {tf}
                           </span>
                         </div>
-                        <span className="text-[11px] text-neutral-400 font-normal">
+                        <span className="text-[11px] text-[#77717C] font-normal tabular-nums">
                           ({count})
                         </span>
                       </label>
@@ -636,19 +643,19 @@ export default function OrdersPage({
             {/* Top Search Bar & Mobile Filter Trigger */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-[#77717C] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by Order ID or Product Name..."
-                  className="w-full pl-10 pr-9 py-2.5 bg-white text-xs border border-neutral-200 rounded-2xl outline-none focus:border-[#D6007A] transition-colors shadow-2xs"
+                  className="w-full pl-10 pr-9 py-2.5 bg-white text-[13px] border border-[#F0E5EC] rounded-2xl outline-none focus:border-[#C00078] transition-colors shadow-2xs text-[#24212A]"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#77717C] hover:text-[#24212A] cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -659,9 +666,9 @@ export default function OrdersPage({
               <button
                 type="button"
                 onClick={() => setMobileFilterOpen(true)}
-                className="lg:hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-neutral-200 hover:border-pink-300 rounded-2xl text-xs font-bold text-neutral-800 shadow-2xs cursor-pointer active:scale-95 transition-all"
+                className="lg:hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-[#F0E5EC] hover:border-[#C00078]/40 rounded-2xl text-[12px] font-semibold text-[#24212A] shadow-2xs cursor-pointer active:scale-95 transition-all"
               >
-                <SlidersHorizontal className="w-4 h-4 text-[#D6007A]" />
+                <SlidersHorizontal className="w-4 h-4 text-[#C00078]" />
                 <span>Filters</span>
                 {activeFilterCount > 0 && (
                   <span className="w-5 h-5 rounded-full bg-[#D6007A] text-white text-[10px] font-bold flex items-center justify-center">
@@ -827,48 +834,48 @@ export default function OrdersPage({
               return (
                 <div
                   key={orderId}
-                  className="bg-white rounded-2xl border border-pink-100/70 shadow-2xs hover:border-pink-200/80 hover:shadow-xs transition-all overflow-hidden"
+                  className="bg-white rounded-2xl border border-[#F0E5EC] shadow-2xs hover:border-[#C00078]/25 hover:shadow-xs transition-all overflow-hidden"
                 >
                   {/* ========================================================= */}
-                  {/* 1. ORDER HEADER BAR (Compact luxury proportions) */}
+                  {/* 1. ORDER HEADER BAR (Refined luxury proportions) */}
                   {/* ========================================================= */}
-                  <div className="bg-[#FFF8FA] px-3.5 sm:px-4.5 py-2.5 sm:py-3 border-b border-pink-100/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    {/* Left: 3 Metadata items with magenta outline icons */}
-                    <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                  <div className="bg-[#FFF5FA] px-3 sm:px-3.5 py-2 border-b border-[#F0E5EC] flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                    {/* Left: 3 Metadata items with brand magenta outline icons */}
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-5">
                       {/* Order Placed */}
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-[#D6007A] shrink-0" />
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3 text-[#C00078] shrink-0" />
                         <div>
-                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                          <span className="text-[10px] text-[#77717C] font-normal block leading-none">
                             Order Placed
                           </span>
-                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                          <span className="text-[12px] font-semibold text-[#24212A] block leading-tight mt-0.5 tabular-nums">
                             {formatDisplayDate(dateStr) || 'Recent'}
                           </span>
                         </div>
                       </div>
 
                       {/* Total Amount */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#D6007A] shrink-0 leading-none">₹</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-[#C00078] shrink-0 leading-none">₹</span>
                         <div>
-                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                          <span className="text-[10px] text-[#77717C] font-normal block leading-none">
                             Total Amount
                           </span>
-                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                          <span className="text-[12px] font-bold text-[#C00078] block leading-tight mt-0.5 tabular-nums">
                             ₹{totalAmount}
                           </span>
                         </div>
                       </div>
 
                       {/* Order Reference */}
-                      <div className="flex items-center gap-2">
-                        <Bookmark className="w-4 h-4 text-[#D6007A] shrink-0" />
+                      <div className="flex items-center gap-1.5">
+                        <Bookmark className="w-3 h-3 text-[#C00078] shrink-0" />
                         <div>
-                          <span className="text-[10px] text-neutral-400 font-medium block leading-none">
+                          <span className="text-[10px] text-[#77717C] font-normal block leading-none">
                             Order Reference
                           </span>
-                          <span className="text-xs font-bold text-neutral-800 block leading-tight mt-0.5">
+                          <span className="text-[11.5px] font-semibold text-[#24212A] block leading-tight mt-0.5">
                             {orderCode} {saleId ? `(${saleId})` : ''}
                           </span>
                         </div>
@@ -876,31 +883,32 @@ export default function OrdersPage({
                     </div>
 
                     {/* Right side: Status Badge + Solid Magenta Invoice Button + White Order Details Button */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {getStatusBadge(order.order_status || order.status || order.order_history_with_date, order)}
 
                       <button
                         type="button"
                         onClick={() => {
                           setInvoiceOrderId(order.order_id || order.id || orderId)
+                          setInvoiceSaleOrderId(order.sale_order_id || order.sale_id || (products[0] && (products[0].sale_order_id || products[0].id)) || null)
                           setIsInvoiceModalOpen(true)
                         }}
-                        className="px-3 py-1.5 rounded-full bg-[#D6007A] hover:bg-[#B80068] text-white text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="px-2.5 py-1 rounded-full bg-[#C00078] hover:bg-[#a00064] text-white text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="View or download official invoice"
                       >
-                        <FileText className="w-3.5 h-3.5 text-white" />
+                        <FileText className="w-3 h-3 text-white" />
                         <span>Invoice</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => onSelectOrder && onSelectOrder(order.sale_order_id || order.id || order.order_id || orderId)}
-                        className="px-3 py-1.5 rounded-full bg-white hover:bg-neutral-50 border border-neutral-200 hover:border-neutral-300 text-neutral-800 text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="px-2.5 py-1 rounded-full bg-white hover:bg-[#FFF5FA] border border-[#F0E5EC] hover:border-[#C00078]/40 text-[#24212A] text-[11px] font-semibold flex items-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="View complete order details, timeline, and delivery information"
                       >
-                        <FileText className="w-3.5 h-3.5 text-neutral-600" />
+                        <FileText className="w-3 h-3 text-[#77717C]" />
                         <span>Order Details</span>
-                        <ChevronRight className="w-3 h-3 text-neutral-500" />
+                        <ChevronRight className="w-2.5 h-2.5 text-[#77717C]" />
                       </button>
                     </div>
                   </div>
@@ -971,11 +979,11 @@ export default function OrdersPage({
                         0
 
                       return (
-                        <div key={idx} className="py-3 first:pt-0 last:pb-0 space-y-3">
+                        <div key={idx} className="py-2.5 first:pt-0 last:pb-0 space-y-2.5">
                           {/* Item Card Flex Row (Product Info on Left, Chat with Admin on Right) */}
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                             {/* Product Image & Details */}
-                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                               <img
                                 src={
                                   formatImageUrl(
@@ -987,7 +995,7 @@ export default function OrdersPage({
                                   'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=300&q=80'
                                 }
                                 alt={prod.product_name || prod.title}
-                                className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-xl border border-neutral-200/80 shrink-0 shadow-2xs cursor-pointer hover:opacity-90 transition-opacity bg-neutral-100"
+                                className="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-xl border border-[#F0E5EC] shrink-0 shadow-2xs cursor-pointer hover:opacity-90 transition-opacity bg-neutral-100"
                                 onClick={() =>
                                   onSelectProduct &&
                                   onSelectProduct(prod.product_id || order.product_id || prod.id)
@@ -998,36 +1006,36 @@ export default function OrdersPage({
                                 {/* Badge */}
                                 <div className="mb-0.5">
                                   <span
-                                    className={`text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block ${
+                                    className={`text-[9.5px] font-semibold tracking-wide px-2 py-0.5 rounded-full inline-block ${
                                       isCustomizable
-                                        ? 'bg-pink-50 text-[#D6007A] border border-pink-200/80'
-                                        : 'bg-[#ECEEF5] text-neutral-600'
+                                        ? 'bg-[#FFF5FA] text-[#C00078] border border-[#F0E5EC]'
+                                        : 'bg-[#F4F4F6] text-[#77717C]'
                                     }`}
                                   >
-                                    {isCustomizable ? 'Bespoke Tailored' : 'READY MADE'}
+                                    {isCustomizable ? 'Bespoke Tailored' : 'Ready Made'}
                                   </span>
                                 </div>
 
-                                {/* Title */}
+                                {/* Title: 13-14px, weight 500 */}
                                 <h3
                                   onClick={() =>
                                     onSelectProduct &&
                                     onSelectProduct(prod.product_id || order.product_id || prod.id)
                                   }
-                                  className="text-xs sm:text-sm font-bold text-neutral-900 hover:text-[#D6007A] cursor-pointer transition-colors leading-snug line-clamp-1"
+                                  className="text-[13px] sm:text-[14px] font-medium text-[#24212A] hover:text-[#C00078] cursor-pointer transition-colors leading-snug line-clamp-1"
                                 >
-                                  {prod.product_name || prod.title || 'Tshirt'}
+                                  {prod.product_name || prod.title || 'Product'}
                                 </h3>
 
-                                {/* Variant / Attributes */}
-                                <p className="text-[10.5px] sm:text-[11px] text-neutral-500 font-normal mt-0.5">
+                                {/* Variant / Attributes: 11.5px, weight 400 */}
+                                <p className="text-[11.5px] text-[#77717C] font-normal mt-0.5">
                                   {prod.product_material_name ? `${prod.product_material_name} • ` : ''}
-                                  Size: <span className="font-semibold text-neutral-700">{prod.size || 'Standard'}</span>
+                                  Size: <span className="font-medium text-[#24212A]">{prod.size || 'Standard'}</span>
                                   {prod.quantity ? ` • Qty: ${prod.quantity}` : ' • Qty: 1'}
                                 </p>
 
-                                {/* Price */}
-                                <div className="mt-0.5 text-sm sm:text-base font-extrabold text-[#D6007A]">
+                                {/* Price: 14.5px, weight 700 with tabular-nums */}
+                                <div className="mt-0.5 text-[14.5px] font-bold text-[#C00078] tabular-nums">
                                   ₹{itemPrice}
                                 </div>
                               </div>
@@ -1061,9 +1069,9 @@ export default function OrdersPage({
                                     onSelectOrder(orderId)
                                   }
                                 }}
-                                className="w-full sm:w-auto px-3.5 py-1.5 rounded-full border border-neutral-200 hover:border-[#D6007A] hover:bg-pink-50/30 text-neutral-700 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                                className="w-full sm:w-auto px-3 py-1 rounded-full border border-[#F0E5EC] hover:border-[#C00078] hover:bg-[#FFF5FA] text-[#24212A] hover:text-[#C00078] text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
                               >
-                                <MessageCircle className="w-3.5 h-3.5 text-neutral-700" />
+                                <MessageCircle className="w-3 h-3 text-[#77717C]" />
                                 <span>Chat with Admin</span>
                               </button>
                             </div>
@@ -1389,8 +1397,10 @@ export default function OrdersPage({
           onClose={() => {
             setIsInvoiceModalOpen(false)
             setInvoiceOrderId(null)
+            setInvoiceSaleOrderId(null)
           }}
           orderId={invoiceOrderId}
+          saleOrderId={invoiceSaleOrderId}
           currentUser={currentUser}
         />
       )}

@@ -1294,9 +1294,17 @@ export default function CategoryPage({
                     const isWishlisted = wishlistIds.map(Number).includes(Number(p.id))
                     const price = p.discount_price || p.actual_price || p.price
                     const originalPrice = p.actual_price || p.original_price
-                    const isInCart = cartItems.some(
-                      (c) => Number(c.product_id || c.product?.id || c.id) === Number(p.id)
-                    )
+                    const prodId = Number(p.product_id || p.id)
+                    const targetMatId = p.material_id || p.variant_id || p.selectedMaterialId || null
+                    const isInCart = cartItems.some((c) => {
+                      const sameProd = Number(c.product_id || c.product?.id || c.id) === prodId
+                      if (!sameProd) return false
+                      if (targetMatId) {
+                        const itemMatId = c.material_id || c.materialId || null
+                        if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                      }
+                      return true
+                    })
                     const isCustomizable = isProductCustomizable(p)
                     const discountPercent =
                       p.discount_percentage > 0
@@ -1437,11 +1445,11 @@ export default function CategoryPage({
                               <span className="text-sm sm:text-base font-extrabold text-[var(--theme-primary)]">
                                 ₹{price}
                               </span>
-                              {originalPrice && Number(originalPrice) > Number(price) && (
+                              {Number(originalPrice) > Number(price) ? (
                                 <span className="text-[11px] text-neutral-400 line-through">
                                   ₹{originalPrice}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
 
                             {discountPercent > 0 && (

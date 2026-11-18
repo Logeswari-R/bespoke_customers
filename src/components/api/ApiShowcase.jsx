@@ -107,7 +107,7 @@ export default function ApiShowcase({
                   {categories.length} Categories &bull; {subcategories.length} Subcategories
                 </span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-neutral-900 uppercase">
+              <h2 className="text-2xl sm:text-3xl font-semibold text-neutral-900 tracking-normal">
                 API Categories & Subcategories
               </h2>
               <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-2xl">

@@ -32,11 +32,21 @@ export default function UserMenu({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [imgError, setImgError] = useState(false)
-  const [internalUnreadCount, setInternalUnreadCount] = useState(0)
+  const [internalUnreadCount, setInternalUnreadCount] = useState(
+    unreadNotificationsCount !== null && unreadNotificationsCount !== undefined
+      ? Number(unreadNotificationsCount) || 0
+      : 0
+  )
   const menuRef = useRef(null)
   const closeTimeoutRef = useRef(null)
 
-  const unreadCount = unreadNotificationsCount !== null ? unreadNotificationsCount : internalUnreadCount
+  useEffect(() => {
+    if (unreadNotificationsCount !== null && unreadNotificationsCount !== undefined) {
+      setInternalUnreadCount(Number(unreadNotificationsCount) || 0)
+    }
+  }, [unreadNotificationsCount])
+
+  const unreadCount = internalUnreadCount
 
   useEffect(() => {
     const targetUserId = currentUser?.id || currentUser?.user_id

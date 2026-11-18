@@ -158,7 +158,7 @@ export default function ProductListing({
           {/* Heading & description */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-neutral-900 uppercase">
+              <h1 className="text-2xl sm:text-3xl font-semibold text-[#24212A] tracking-normal">
                 {activeFilter.subcategory ||
                   activeFilter.category ||
                   (activeFilter.query ? `Search Results` : 'Curated Collections')}
@@ -347,9 +347,17 @@ export default function ProductListing({
 
                     {/* Single Line Quick Action overlay */}
                     {(() => {
-                      const isInCart = cartItems.some(
-                        (c) => Number(c.product_id || c.product?.id || c.id) === Number(product.id)
-                      )
+                      const prodId = Number(product.product_id || product.id)
+                      const targetMatId = product.material_id || product.variant_id || product.selectedMaterialId || null
+                      const isInCart = cartItems.some((c) => {
+                        const sameProd = Number(c.product_id || c.product?.id || c.id) === prodId
+                        if (!sameProd) return false
+                        if (targetMatId) {
+                          const itemMatId = c.material_id || c.materialId || null
+                          if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                        }
+                        return true
+                      })
                       return (
                         <div className="absolute inset-x-2 bottom-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 hidden sm:flex items-center gap-1.5 z-10">
                           {isInCart ? (
@@ -399,14 +407,14 @@ export default function ProductListing({
                       {/* Row 1: Product name on left corner & Custom badge on right corner */}
                       <div className="flex items-start justify-between gap-2">
                         <h3
-                          className="text-[16px] font-semibold text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
+                          className="text-[15px] font-medium text-[#24212A] leading-snug line-clamp-2 text-left group-hover:text-[#C00078] transition-colors break-words flex-1"
                           title={product.title || product.product_name}
                         >
                           {product.title || product.product_name}
                         </h3>
 
                         {isCustomizable && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-2 py-0.5 rounded-[6px] shrink-0 select-none mt-0.5">
                             <Scissors className="w-2.5 h-2.5 text-[#C00078]" />
                             <span>CUSTOM</span>
                           </span>
@@ -416,7 +424,7 @@ export default function ProductListing({
                       {/* Row 2: Vendor / shop name */}
                       <div className="flex items-center justify-between gap-1.5 mt-1">
                         <p
-                          className="text-[13.5px] font-normal text-[#77717C] text-left truncate"
+                          className="text-[12px] font-normal text-[#77717C] text-left truncate"
                           title={product.shop_name || product.vendor?.shop_name || product.vendor_name || product.brand || 'Bespoke Atelier'}
                         >
                           {product.shop_name || product.vendor?.shop_name || product.vendor_name || product.brand || 'Bespoke Atelier'}
@@ -432,25 +440,33 @@ export default function ProductListing({
                     {/* 4. Subtle divider & 5. Horizontal Price Layout */}
                     <div className="border-t border-[#F0E5EC] mt-3 pt-3 flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center flex-wrap gap-2">
-                        <span className="text-[20px] font-bold text-[#C00078] leading-none">
+                        <span className="text-[17px] font-bold text-[#C00078] tabular-nums leading-none">
                           ₹{product.price}
                         </span>
-                        {product.originalPrice && Number(product.originalPrice) > Number(product.price) && (
-                          <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
+                        {Number(product.originalPrice) > Number(product.price) ? (
+                          <span className="text-[13px] font-normal text-[#999999] line-through tabular-nums leading-none">
                             ₹{product.originalPrice}
                           </span>
-                        )}
+                        ) : null}
                         {product.discount_percentage > 0 && (
-                          <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
+                          <span className="inline-flex items-center text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-1.5 py-0.5 rounded-[5px] leading-none">
                             {product.discount_percentage}% OFF
                           </span>
                         )}
                       </div>
 
                       {(() => {
-                        const isInCart = cartItems.some(
-                          (c) => Number(c.product_id || c.product?.id || c.id) === Number(product.id)
-                        )
+                        const prodId = Number(product.product_id || product.id)
+                        const targetMatId = product.material_id || product.variant_id || product.selectedMaterialId || null
+                        const isInCart = cartItems.some((c) => {
+                          const sameProd = Number(c.product_id || c.product?.id || c.id) === prodId
+                          if (!sameProd) return false
+                          if (targetMatId) {
+                            const itemMatId = c.material_id || c.materialId || null
+                            if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                          }
+                          return true
+                        })
                         return (
                           <div className="flex items-center gap-1.5 sm:hidden shrink-0">
                             {isInCart ? (

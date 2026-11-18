@@ -78,8 +78,8 @@ export default function SuperSaverDealsSection({
             <div className="flex items-center gap-2 mb-0.5">
               <h2
                 onClick={onViewAll}
-                className={`text-xl sm:text-2xl font-black tracking-tight transition-opacity ${
-                  isBespoke ? 'text-white drop-shadow-xs' : 'font-extrabold text-neutral-900'
+                className={`text-[22px] sm:text-[24px] font-semibold tracking-normal transition-opacity ${
+                  isBespoke ? 'text-white drop-shadow-xs' : 'text-[#24212A]'
                 } ${onViewAll ? 'cursor-pointer hover:opacity-90' : ''}`}
               >
                 {isBespoke ? (
@@ -266,12 +266,12 @@ export default function SuperSaverDealsSection({
                   {/* ROW 1: Product Name on left | Price on right (same line, vertically centered) */}
                   <div className="flex items-center justify-between gap-2">
                     <h3
-                      className="text-[15px] sm:text-[16px] font-semibold text-[#24212A] truncate capitalize text-left group-hover:text-[#C00078] transition-colors flex-1"
+                      className="text-[14px] sm:text-[15px] font-medium text-[#24212A] truncate capitalize text-left group-hover:text-[#C00078] transition-colors flex-1"
                       title={productName}
                     >
                       {productName}
                     </h3>
-                    <span className="text-[19px] sm:text-[20px] font-bold text-[#C00078] shrink-0 tracking-tight leading-none text-right">
+                    <span className="text-[16px] sm:text-[17px] font-bold text-[#C00078] shrink-0 tabular-nums leading-none text-right">
                       {formattedPrice}
                     </span>
                   </div>

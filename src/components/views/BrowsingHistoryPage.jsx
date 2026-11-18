@@ -147,7 +147,7 @@ export default function BrowsingHistoryPage({
             )}
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-serif font-bold text-[#24212A] tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-semibold text-[#24212A] tracking-normal">
                   Browsing <span className="text-[#C00078]">History</span>
                 </h1>
                 {allHistory.length > 0 && (
@@ -184,7 +184,7 @@ export default function BrowsingHistoryPage({
             <div className="w-20 h-20 mx-auto rounded-3xl bg-[#FFF5FA] border border-[#F8D4E8] flex items-center justify-center text-[#C00078] shadow-sm mb-5">
               <Clock className="w-10 h-10 stroke-[1.5]" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#24212A] mb-2">
+            <h2 className="text-xl sm:text-2xl font-semibold text-[#24212A] mb-2 tracking-normal">
               Your browsing history is empty
             </h2>
             <p className="text-sm text-[#77717C] mb-6">
@@ -449,11 +449,11 @@ export default function BrowsingHistoryPage({
                                 <span className="text-sm sm:text-base font-bold text-[#C00078] leading-none">
                                   ₹{price.toLocaleString('en-IN')}
                                 </span>
-                                {originalPrice && Number(originalPrice) > Number(price) && (
+                                {Number(originalPrice) > Number(price) ? (
                                   <span className="text-[11px] text-neutral-400 line-through leading-none">
                                     ₹{originalPrice.toLocaleString('en-IN')}
                                   </span>
-                                )}
+                                ) : null}
                               </div>
 
                               {/* Mobile Quick Add to Bag */}

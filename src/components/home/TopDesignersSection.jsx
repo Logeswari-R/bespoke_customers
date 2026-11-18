@@ -72,8 +72,8 @@ export default function TopDesignersSection({
             <div className="flex items-center gap-2 mb-0.5">
               <h2
                 onClick={onViewAll}
-                className={`text-xl sm:text-2xl font-black tracking-tight transition-opacity ${
-                  isBespoke ? 'text-white drop-shadow-xs' : 'font-extrabold text-neutral-900'
+                className={`text-[22px] sm:text-[24px] font-semibold tracking-normal transition-opacity ${
+                  isBespoke ? 'text-white drop-shadow-xs' : 'text-[#24212A]'
                 } ${onViewAll ? 'cursor-pointer hover:opacity-90' : ''}`}
               >
                 {isBespoke ? (

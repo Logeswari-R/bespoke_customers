@@ -204,7 +204,7 @@ export default function ShopPage({
           alt={shopDisplayName}
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/20" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 w-full flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4">
           <div className="flex items-center gap-4 text-center sm:text-left">
@@ -221,14 +221,14 @@ export default function ShopPage({
             </div>
 
             <div className="text-white">
-              <span className="text-xs uppercase tracking-widest text-pink-300 font-bold">
+              <span className="text-xs uppercase tracking-widest text-pink-300 font-bold drop-shadow-xs">
                 Boutique in Spotlight
               </span>
-              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight mt-0.5">
+              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white drop-shadow-md mt-0.5">
                 {shopDisplayName}
               </h1>
               {shopData?.price && (
-                <p className="text-xs text-neutral-300 mt-1">
+                <p className="text-xs text-neutral-200 mt-1 drop-shadow-xs">
                   Curated collections starting from{' '}
                   <span className="font-bold text-white">₹{shopData.price}</span>
                 </p>
@@ -346,11 +346,11 @@ export default function ShopPage({
                         <span className="text-[20px] font-bold text-[#C00078] leading-none">
                           ₹{price}
                         </span>
-                        {p.original_price && Number(p.original_price) > Number(price) && (
+                        {Number(p.original_price) > Number(price) ? (
                           <span className="text-[13.5px] font-normal text-[#999999] line-through leading-none">
                             ₹{p.original_price}
                           </span>
-                        )}
+                        ) : null}
                         {p.discount_percentage > 0 && (
                           <span className="inline-flex items-center text-[10.5px] font-bold text-[#C00078] bg-[#FFF1F8] border border-[#F8D4E8] px-1.5 py-0.5 rounded-[5px] leading-none">
                             {p.discount_percentage}% OFF
@@ -358,9 +358,17 @@ export default function ShopPage({
                         )}
                       </div>
                       {(() => {
-                        const isInCart = cartItems.some(
-                          (c) => Number(c.product_id || c.product?.id || c.id) === Number(p.id)
-                        )
+                        const prodId = Number(p.product_id || p.id)
+                        const targetMatId = p.material_id || p.variant_id || p.selectedMaterialId || null
+                        const isInCart = cartItems.some((c) => {
+                          const sameProd = Number(c.product_id || c.product?.id || c.id) === prodId
+                          if (!sameProd) return false
+                          if (targetMatId) {
+                            const itemMatId = c.material_id || c.materialId || null
+                            if (itemMatId && String(itemMatId) !== String(targetMatId)) return false
+                          }
+                          return true
+                        })
                         return (
                           <div className="flex items-center gap-1.5">
                             {isInCart ? (

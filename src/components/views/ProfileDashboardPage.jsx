@@ -92,7 +92,7 @@ export default function ProfileDashboardPage({
       {/* 1. Mobile/Desktop Top App Bar */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-neutral-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2">
-          <span className="text-xl sm:text-2xl font-black tracking-tight text-[#D6007A]">
+          <span className="text-xl sm:text-2xl font-bold tracking-tight text-[#C00078]">
             BESPOKE
           </span>
           <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-widest text-[#D6007A] bg-pink-50 px-2 py-0.5 rounded-full border border-pink-100">

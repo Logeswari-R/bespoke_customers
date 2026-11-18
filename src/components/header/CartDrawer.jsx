@@ -116,7 +116,20 @@ export default function CartDrawer({
     (acc, item) => acc + (Number(item.price) || 0) * (item.quantity || 1),
     0
   )
-  const total = subtotal + (cartItems.length > 0 ? deliveryCharge : 0)
+  const totalGst = cartItems.reduce((acc, item) => {
+    const rawPct = item.gst_percentage !== undefined && item.gst_percentage !== null ? Number(item.gst_percentage) : null
+    const gstPct = rawPct !== null && rawPct > 0 ? rawPct : 18
+    if (item.total_gst !== undefined && item.total_gst !== null && Number(item.total_gst) > 0) {
+      return acc + Number(item.total_gst)
+    }
+    if (gstPct > 0) {
+      const itemTotal = (Number(item.price) || 0) * (item.quantity || 1)
+      return acc + Math.round(((itemTotal * gstPct) / 100) * 100) / 100
+    }
+    return acc
+  }, 0)
+  const roundedGst = Math.round(totalGst * 100) / 100
+  const total = subtotal + roundedGst + (cartItems.length > 0 ? deliveryCharge : 0)
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
@@ -204,8 +217,8 @@ export default function CartDrawer({
                       item.order_type === 'Customizable'
 
                     const variantText = [
-                      item.color || item.material || '',
-                      `Size: ${item.size || 'M'}`,
+                      item.color || item.material_name || item.variant_name || item.material || '',
+                      `Size: ${item.size || 'Standard'}`,
                     ]
                       .filter(Boolean)
                       .join(' | ')
@@ -255,6 +268,7 @@ export default function CartDrawer({
                             {/* Variant / Size */}
                             <p className="text-[11px] text-neutral-500 font-medium mt-0.5 truncate">
                               {variantText || 'Standard'}
+                              {Number(item.gst_percentage || 0) > 0 && ` • GST ${item.gst_percentage}%`}
                             </p>
 
                             {/* Customizable Tag if custom */}
@@ -292,7 +306,7 @@ export default function CartDrawer({
                             </div>
 
                             {/* Price */}
-                            <span className="text-sm sm:text-[15px] font-black text-[#d6007a] tracking-tight">
+                            <span className="text-[16px] font-bold text-[#C00078] tabular-nums">
                               ₹{itemPrice.toLocaleString('en-IN')}
                             </span>
                           </div>
@@ -304,22 +318,28 @@ export default function CartDrawer({
 
                 {/* Subtotal & Delivery Breakdown */}
                 <div className="pt-3 border-t border-neutral-100 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-neutral-600">
-                    <span className="font-medium">Subtotal</span>
-                    <span className="font-bold text-neutral-900">
+                  <div className="flex justify-between text-[#77717C]">
+                    <span className="font-normal text-[13px]">Subtotal</span>
+                    <span className="font-semibold text-[#24212A] text-[13px] tabular-nums">
                       ₹{subtotal.toLocaleString('en-IN')}
                     </span>
                   </div>
-                  <div className="flex justify-between text-neutral-600">
-                    <span className="font-medium">Delivery Charge</span>
-                    <span className="font-bold text-neutral-900">₹{deliveryCharge}</span>
+                  <div className="flex justify-between text-[#77717C]">
+                    <span className="font-normal text-[13px]">GST (18%)</span>
+                    <span className="font-semibold text-[#24212A] text-[13px] tabular-nums">
+                      + ₹{roundedGst.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[#77717C]">
+                    <span className="font-normal text-[13px]">Delivery Charge</span>
+                    <span className="font-semibold text-[#24212A] text-[13px] tabular-nums">₹{deliveryCharge}</span>
                   </div>
                 </div>
 
                 {/* Total */}
                 <div className="flex justify-between items-baseline pt-2 border-t border-neutral-100">
-                  <span className="text-sm sm:text-base font-black text-neutral-900">Total</span>
-                  <span className="text-lg sm:text-xl font-black text-[#d6007a] tracking-tight">
+                  <span className="text-sm sm:text-base font-semibold text-[#24212A]">Total</span>
+                  <span className="text-lg sm:text-xl font-bold text-[#C00078] tabular-nums">
                     ₹{total.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -328,7 +348,7 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={onCheckout}
-                  className="w-full h-10 sm:h-11 rounded-full bg-[#d6007a] hover:bg-[#b80068] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/20 hover:shadow-lg hover:shadow-pink-500/30 active:scale-[0.99] transition-all cursor-pointer mt-1"
+                  className="w-full h-10 sm:h-11 rounded-full bg-[#C00078] hover:bg-[#a00064] text-white text-[13px] sm:text-[14px] font-semibold flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs active:scale-[0.99] transition-all cursor-pointer mt-1"
                 >
                   <span>Proceed to Checkout</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -463,7 +483,7 @@ export default function CartDrawer({
                                 </div>
 
                                 {/* Discount Badge */}
-                                <span className="text-[9.5px] font-black px-1.5 py-0.5 rounded-full bg-pink-100 text-[#d6007a] shrink-0">
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FFF5FA] text-[#C00078] shrink-0 border border-[#F0E5EC]">
                                   {badgeText}
                                 </span>
                               </div>
