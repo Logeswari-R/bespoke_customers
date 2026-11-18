@@ -36,6 +36,10 @@ export default function NotificationsPage({
 
   const loadNotifications = useCallback(async (showLoader = false) => {
     if (showLoader) setIsLoading(true)
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('get_notifications', { recipientId: userId, limit: 50 })
+      return
+    }
     try {
       const res = await getNotificationsApi({
         recipientType: 'user',
@@ -76,7 +80,16 @@ export default function NotificationsPage({
       socket.emit('register', userId)
       socket.emit('join_room', String(userId))
       socket.emit('join_room', `user_${userId}`)
+      // Fetch notifications list over WebSocket
+      socket.emit('get_notifications', { recipientId: userId, limit: 50 })
     })
+
+    const handleNotificationsList = (res) => {
+      const list = Array.isArray(res?.data) ? res.data : []
+      setNotifications(list)
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
 
     const handleIncomingNotification = (newNotif) => {
       if (!newNotif) return
@@ -89,15 +102,18 @@ export default function NotificationsPage({
       })
     }
 
+    socket.on('notifications:list', handleNotificationsList)
     socket.on('notification:new', handleIncomingNotification)
     socket.on('notification', handleIncomingNotification)
     socket.on('support_notification:new', handleIncomingNotification)
 
     return () => {
+      socket.off('notifications:list', handleNotificationsList)
       socket.off('notification:new', handleIncomingNotification)
       socket.off('notification', handleIncomingNotification)
       socket.off('support_notification:new', handleIncomingNotification)
       socket.disconnect()
+      socketRef.current = null
     }
   }, [userId])
 
@@ -110,14 +126,22 @@ export default function NotificationsPage({
       prev.map((n) => ((n.id || n.notification_id) === notifId ? { ...n, is_read: true, isRead: true } : n))
     )
 
-    await markNotificationReadApi(notifId, { recipientType: 'user', recipientId: userId })
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('mark_read', { id: notifId, recipientId: userId })
+    } else {
+      markNotificationReadApi(notifId, { recipientType: 'user', recipientId: userId }).catch(() => {})
+    }
   }
 
   const handleMarkAllRead = async () => {
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, is_read: true, isRead: true }))
     )
-    await markAllNotificationsReadApi({ recipientType: 'user', recipientId: userId })
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('mark_all_read', { recipientId: userId })
+    } else {
+      markAllNotificationsReadApi({ recipientType: 'user', recipientId: userId }).catch(() => {})
+    }
   }
 
   const handleNotificationClick = (notif) => {

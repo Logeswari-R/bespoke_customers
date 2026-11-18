@@ -163,23 +163,18 @@ export default function App() {
 
   const lastToastTextRef = useRef('')
   const lastToastTimeRef = useRef(0)
+  const socketRef = useRef(null)
 
   const targetUserId = currentUser?.id || currentUser?.user_id || null
 
-  // Authoritative unread notifications count synchronization from MySQL DB
-  const refreshUnread = useCallback(async () => {
+  // Real-time unread notifications count synchronization via WebSocket (Zero HTTP polling)
+  const refreshUnread = useCallback(() => {
     if (!targetUserId) {
       setUnreadNotificationsCount(0)
       return
     }
-    try {
-      const count = await getUnreadNotificationCountApi({
-        recipientType: 'user',
-        recipientId: targetUserId,
-      })
-      setUnreadNotificationsCount(Number(count) || 0)
-    } catch {
-      // non-blocking
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('get_unread_count', { recipientId: targetUserId })
     }
   }, [targetUserId])
 
@@ -189,9 +184,6 @@ export default function App() {
       setUnreadNotificationsCount(0)
       return
     }
-
-    // Initial fetch of true unread count from database
-    refreshUnread()
 
     const rawWsUrl =
       import.meta.env.VITE_WEBSOCKET_URL ||
@@ -205,27 +197,34 @@ export default function App() {
       reconnectionAttempts: 15,
       reconnectionDelay: 1000,
     })
+    socketRef.current = socket
 
     socket.on('connect', () => {
       console.log('⚡ [Global App] Socket connected for customer:', targetUserId)
       socket.emit('register', String(targetUserId))
       socket.emit('join_room', String(targetUserId))
       socket.emit('join_room', `customer_${targetUserId}`)
+      // Request initial unread count purely over WebSocket
+      socket.emit('get_unread_count', { recipientId: targetUserId })
     })
 
     const handleNotification = (notif) => {
-      console.log('🔔 [Global App] Real-time notification received:', notif)
+      console.log('🔔 [Global App] Real-time notification received via WebSocket:', notif)
       if (viewStateRef.current?.type === 'chats') {
         // Customer is actively inside chat window viewing messages
         if (targetUserId) {
-          markAllNotificationsReadApi({ recipientType: 'user', recipientId: targetUserId }).catch(() => {})
+          socket.emit('mark_all_read', { recipientId: targetUserId })
         }
         setUnreadNotificationsCount(0)
         return
       }
 
-      // Authoritatively update count from MySQL database
-      refreshUnread()
+      // Update count directly from WebSocket payload or increment without making HTTP call
+      if (typeof notif?.unread_count === 'number') {
+        setUnreadNotificationsCount(notif.unread_count)
+      } else {
+        setUnreadNotificationsCount((prev) => prev + 1)
+      }
 
       const toastMsg = notif?.message || notif?.title || 'New reply received from support'
       const now = Date.now()
@@ -252,14 +251,14 @@ export default function App() {
         if (viewStateRef.current?.type === 'chats') {
           // Customer is actively reading chat: auto-mark read and keep count 0
           if (targetUserId) {
-            markAllNotificationsReadApi({ recipientType: 'user', recipientId: targetUserId }).catch(() => {})
+            socket.emit('mark_all_read', { recipientId: targetUserId })
           }
           setUnreadNotificationsCount(0)
           return
         }
 
-        // Authoritatively update count from MySQL database
-        refreshUnread()
+        // Live unread increment via WebSocket (NO HTTP API calls)
+        setUnreadNotificationsCount((prev) => prev + 1)
 
         const rawText = String(data.message || data.text || 'New message from support')
         const toastMsg = `Admin: "${rawText}"`
@@ -280,8 +279,6 @@ export default function App() {
     const handleUnreadUpdate = (data) => {
       if (data && typeof data.unread_count === 'number') {
         setUnreadNotificationsCount(data.unread_count)
-      } else {
-        refreshUnread()
       }
     }
 
@@ -298,8 +295,9 @@ export default function App() {
       socket.off('receive_message', handleMessage)
       socket.off('unread_count:update', handleUnreadUpdate)
       socket.disconnect()
+      socketRef.current = null
     }
-  }, [targetUserId, refreshUnread])
+  }, [targetUserId])
 
   // Synchronize Cart and Wishlist from MySQL Backend on mount and user change
   useEffect(() => {
@@ -774,7 +772,11 @@ export default function App() {
     setUnreadNotificationsCount(0)
     const activeUid = currentUser.id || currentUser.user_id
     if (activeUid) {
-      markAllNotificationsReadApi({ recipientType: 'user', recipientId: activeUid }).catch(() => {})
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('mark_all_read', { recipientId: activeUid })
+      } else {
+        markAllNotificationsReadApi({ recipientType: 'user', recipientId: activeUid }).catch(() => {})
+      }
     }
     navigateTo('chats', null)
     setActiveBottomTab('profile')
@@ -817,7 +819,11 @@ export default function App() {
     setUnreadNotificationsCount(0)
     const activeUid = currentUser.id || currentUser.user_id
     if (activeUid) {
-      markAllNotificationsReadApi({ recipientType: 'user', recipientId: activeUid }).catch(() => {})
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('mark_all_read', { recipientId: activeUid })
+      } else {
+        markAllNotificationsReadApi({ recipientType: 'user', recipientId: activeUid }).catch(() => {})
+      }
     }
     navigateTo('notifications', null)
     setActiveBottomTab('profile')

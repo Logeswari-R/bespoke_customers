@@ -12,7 +12,7 @@ import {
   Clock,
   CreditCard,
 } from 'lucide-react'
-import { formatImageUrl, getUnreadNotificationCountApi } from '../../services/api'
+import { formatImageUrl } from '../../services/api'
 
 export default function UserMenu({
   currentUser = null,
@@ -46,46 +46,12 @@ export default function UserMenu({
     }
   }, [unreadNotificationsCount])
 
-  const unreadCount = internalUnreadCount
-
-  useEffect(() => {
-    const targetUserId = currentUser?.id || currentUser?.user_id
-    if (!targetUserId) {
-      setInternalUnreadCount(0)
-      return
-    }
-
-    let isMounted = true
-    const fetchUnread = async () => {
-      try {
-        const count = await getUnreadNotificationCountApi({
-          recipientType: 'user',
-          recipientId: targetUserId,
-        })
-        if (isMounted) setInternalUnreadCount(count || 0)
-      } catch {
-        // non-blocking
-      }
-    }
-
-    fetchUnread()
-    const timer = setInterval(fetchUnread, 30000)
-    return () => {
-      isMounted = false
-      clearInterval(timer)
-    }
-  }, [currentUser?.id, currentUser?.user_id])
+  const unreadCount = Number(unreadNotificationsCount) || internalUnreadCount
 
   const handleMouseEnter = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
-    }
-    const targetUserId = currentUser?.id || currentUser?.user_id
-    if (targetUserId) {
-      getUnreadNotificationCountApi({ recipientType: 'user', recipientId: targetUserId })
-        .then((count) => setInternalUnreadCount(Number(count) || 0))
-        .catch(() => {})
     }
     setIsOpen(true)
   }
