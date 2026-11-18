@@ -1199,11 +1199,11 @@ export default function SearchResultsPage({
                               <span className="text-[17px] font-bold text-[#C00078] tabular-nums leading-none">
                                 ₹{pPrice}
                               </span>
-                              {pOriginalPrice > pPrice && (
+                              {Number(pOriginalPrice) > Number(pPrice) ? (
                                 <span className="text-xs text-neutral-400 line-through tabular-nums leading-none">
                                   ₹{pOriginalPrice}
                                 </span>
-                              )}
+                              ) : null}
                               {pDiscount > 0 && (
                                 <span className="text-[10.5px] font-semibold text-[#C00078] bg-[#FFF5FA] border border-[#F0E5EC] px-1.5 py-0.5 rounded leading-none">
                                   {pDiscount}% OFF

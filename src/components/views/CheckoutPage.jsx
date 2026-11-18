@@ -1217,11 +1217,11 @@ export default function CheckoutPage({
                             <span className="text-[16px] font-bold text-[#24212A] tabular-nums">
                               ₹{itemTotalPrice}
                             </span>
-                            {itemTotalActual > itemTotalPrice && (
+                            {Number(itemTotalActual) > Number(itemTotalPrice) ? (
                               <span className="text-[13px] text-[#77717C] line-through tabular-nums">
                                 ₹{itemTotalActual}
                               </span>
-                            )}
+                            ) : null}
                             {Number(item.gst_percentage || 0) > 0 && (
                               <span className="text-[10px] text-neutral-500 font-medium">
                                 + ₹{Math.round(((itemTotalPrice * Number(item.gst_percentage)) / 100) * 100) / 100} GST ({item.gst_percentage}%)

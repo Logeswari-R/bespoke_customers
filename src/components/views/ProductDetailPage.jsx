@@ -1007,7 +1007,7 @@ export default function ProductDetailPage({
                   ₹{finalUnitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
 
-                {finalOriginalUnitPrice > finalUnitPrice && (
+                {Number(finalOriginalUnitPrice) > Number(finalUnitPrice) ? (
                   <>
                     <span className="text-[14px] sm:text-[15px] text-[#77717C] line-through font-normal tabular-nums">
                       ₹{finalOriginalUnitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1016,7 +1016,7 @@ export default function ProductDetailPage({
                       {discountPercent}% OFF
                     </span>
                   </>
-                )}
+                ) : null}
               </div>
               <p className="text-xs text-emerald-700 font-semibold mt-2 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

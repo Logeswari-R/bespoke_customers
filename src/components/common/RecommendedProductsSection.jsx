@@ -352,11 +352,11 @@ export default function RecommendedProductsSection({
                     <span className="text-base font-bold text-[#24212A] tabular-nums">
                       ₹{price.toLocaleString('en-IN')}
                     </span>
-                    {originalPrice > price && (
+                    {Number(originalPrice) > Number(price) ? (
                       <span className="text-xs text-neutral-400 line-through tabular-nums">
                         ₹{originalPrice.toLocaleString('en-IN')}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>

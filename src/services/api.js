@@ -1994,18 +1994,27 @@ export async function getOrderInvoicesApi(orderId, userId = null, saleOrderId = 
     let sId = null
     if (typeof userId === 'object' && userId !== null) {
       uId = userId.userId || userId.user_id || getStoredUserId()
-      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_id || null
+      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_order || userId.sale_id || null
     } else {
       uId = userId || getStoredUserId()
       sId = saleOrderId || null
     }
 
-    const params = new URLSearchParams()
-    if (sId) params.append('sale_order_id', sId)
-    else if (uId) params.append('user_id', uId)
+    let targetUrl = ''
+    if (sId) {
+      targetUrl = `${NODE_API}/api/customer/orders/invoice?sale_order=${encodeURIComponent(sId)}`
+      if (uId) targetUrl += `&user_id=${encodeURIComponent(uId)}`
+    } else if (orderId) {
+      const params = new URLSearchParams()
+      if (uId) params.append('user_id', uId)
+      const query = params.toString() ? `?${params.toString()}` : ''
+      targetUrl = `${NODE_API}/api/customer/orders/${orderId}/invoice${query}`
+    } else {
+      targetUrl = `${NODE_API}/api/customer/orders/invoice`
+      if (uId) targetUrl += `?user_id=${encodeURIComponent(uId)}`
+    }
 
-    const query = params.toString() ? `?${params.toString()}` : ''
-    const res = await fetch(`${NODE_API}/api/customer/orders/${orderId}/invoice${query}`)
+    const res = await fetch(targetUrl)
     const json = await res.json()
     return json
   } catch (err) {
@@ -2054,23 +2063,29 @@ export async function downloadInvoicePdfApi(invoiceId, userId = null, defaultFil
 
     if (typeof userId === 'object' && userId !== null) {
       uId = userId.userId || userId.user_id || getStoredUserId()
-      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_id || null
+      sId = userId.saleOrderId || userId.sale_order_id || userId.sale_order || userId.sale_id || null
     } else {
       uId = userId || getStoredUserId()
       sId = saleOrderId || null
     }
 
     if (typeof defaultFilename === 'object' && defaultFilename !== null) {
-      sId = sId || defaultFilename.saleOrderId || defaultFilename.sale_order_id
+      sId = sId || defaultFilename.saleOrderId || defaultFilename.sale_order_id || defaultFilename.sale_order
       filename = defaultFilename.filename || null
     }
 
-    const params = new URLSearchParams()
-    if (sId) params.append('sale_order_id', sId)
-    else if (uId) params.append('user_id', uId)
+    let downloadUrl = ''
+    if (sId) {
+      downloadUrl = `${NODE_API}/api/customer/invoices/download?sale_order=${encodeURIComponent(sId)}`
+      if (uId) downloadUrl += `&user_id=${encodeURIComponent(uId)}`
+    } else {
+      const params = new URLSearchParams()
+      if (uId) params.append('user_id', uId)
+      const query = params.toString() ? `?${params.toString()}` : ''
+      downloadUrl = `${NODE_API}/api/customer/invoices/${invoiceId}/download${query}`
+    }
 
-    const query = params.toString() ? `?${params.toString()}` : ''
-    const res = await fetch(`${NODE_API}/api/customer/invoices/${invoiceId}/download${query}`)
+    const res = await fetch(downloadUrl)
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}))
       throw new Error(errJson.message || 'Unable to download invoice PDF.')
@@ -2105,13 +2120,19 @@ export async function downloadOrderInvoicePdfApi(orderId, sellerId = null, userI
       uId = userId || getStoredUserId()
     }
 
-    const params = new URLSearchParams()
-    if (sId) params.append('sale_order_id', sId)
-    else if (uId) params.append('user_id', uId)
-    if (sellerId) params.append('seller_id', sellerId)
+    let downloadUrl = ''
+    if (sId) {
+      downloadUrl = `${NODE_API}/api/customer/invoices/download?sale_order=${encodeURIComponent(sId)}`
+      if (uId) downloadUrl += `&user_id=${encodeURIComponent(uId)}`
+    } else {
+      const params = new URLSearchParams()
+      if (uId) params.append('user_id', uId)
+      if (sellerId) params.append('seller_id', sellerId)
+      const queryStr = params.toString() ? `?${params.toString()}` : ''
+      downloadUrl = `${NODE_API}/api/customer/orders/${orderId}/invoice/download${queryStr}`
+    }
 
-    const queryStr = params.toString() ? `?${params.toString()}` : ''
-    const res = await fetch(`${NODE_API}/api/customer/orders/${orderId}/invoice/download${queryStr}`)
+    const res = await fetch(downloadUrl)
     if (!res.ok) {
       const errJson = await res.json().catch(() => ({}))
       throw new Error(errJson.message || 'Invoice is not available yet.')
